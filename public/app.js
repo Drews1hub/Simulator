@@ -238,7 +238,11 @@ function renderEstimate() {
   btn.className = 'btn submit ' + side;
   const pos = store.acct.positions[s];
   let verb = side === 'buy' ? (pos && pos.qty < 0 ? 'Buy to Cover' : 'Buy') : (pos && pos.qty > 0 ? 'Sell' : 'Sell Short');
-  btn.textContent = `${verb} ${qty > 0 ? qty : ''} ${s} ${type !== 'market' ? type.toUpperCase() : 'MKT'}`;
+  // Total = shares × price (last price for market, the entered price for limit/stop)
+  const estPx = type === 'market' ? q?.price : Number($('oPrice').value) || q?.price;
+  const total = qty > 0 && estPx > 0 ? qty * estPx : 0;
+  btn.innerHTML = `<span class="btn-main">${verb} ${qty > 0 ? qty : ''} ${s} ${type !== 'market' ? type.toUpperCase() : 'MKT'}</span>` +
+    (total ? `<span class="btn-total">Total ${fmt$(total)}</span>` : '');
   btn.disabled = !canTrade() || !q || !q.price;
   if (!q || !q.price || !(qty > 0)) { $('oEst').textContent = '—'; return; }
   const px = type === 'market' ? q.price : Number($('oPrice').value) || q.price;

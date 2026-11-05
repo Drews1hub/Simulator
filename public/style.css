@@ -144,3 +144,7 @@ dialog h2 { margin: 0 0 4px; }
 .suggest b { min-width: 52px; }
 .suggest span { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
 .suggest em { font-style: normal; font-size: 10px; color: var(--muted); border: 1px solid var(--line); border-radius: 3px; padding: 0 4px; }
+
+.btn.submit { display: flex; flex-direction: column; align-items: center; gap: 2px; line-height: 1.25; }
+.btn-main { font-size: 14px; }
+.btn-total { font-variant-numeric: tabular-nums; font-weight: 700; font-size: 17px; }
