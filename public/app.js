@@ -7,12 +7,14 @@ const QUOTE_MS = 5000;
 const CHART_MS = 20000;
 
 // ---------- state ----------
-let store = load();
+let store = migrate(load());
 const quotes = {};          // sym -> latest quote
 let chartData = null;
 let chartRange = { r: '1d', i: '1m' };
 let side = 'buy';
 let activeTab = 'positions';
+let src = null;               // active market-data source (see data.js)
+const ind = { vwap: true, ema9: true, ema21: false };
 
 function load() {
   try {
@@ -20,6 +22,9 @@ function load() {
     if (s && s.acct && s.watch) return s;
   } catch (_) { /* fall through */ }
   return { acct: Engine.createAccount(), watch: DEFAULT_WATCH.slice(), selected: 'JPM', allowOutside: true, dayStart: null };
+}
+function migrate(s) {
+  return { autoFlatten: false, sound: true, equityHist: [], finnhubKey: '', lastAutoFlatten: '', ...s };
 }
 function save() { localStorage.setItem(STORE_KEY, JSON.stringify(store)); }
 
@@ -69,24 +74,25 @@ function trackedSymbols() {
 
 async function pollQuotes() {
   const syms = trackedSymbols();
-  if (!syms.length) return;
+  if (!syms.length || !src) return;
   try {
-    const res = await fetch('/api/quotes?symbols=' + syms.join(','));
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || res.status);
+    const data = await src.getQuotes(syms);
     for (const [s, q] of Object.entries(data)) {
       if (q.error) { if (!quotes[s]) quotes[s] = { symbol: s, error: q.error }; continue; }
       const prev = quotes[s];
       q.flash = prev && prev.price && q.price !== prev.price ? (q.price > prev.price ? 'up' : 'down') : '';
       quotes[s] = q;
     }
-    $('lastUpdate').textContent = 'Live · ' + new Date().toLocaleTimeString();
-    $('lastUpdate').className = 'muted';
+    const stale = Object.values(data).some((q) => q.stale);
+    $('lastUpdate').textContent = (stale ? 'Delayed (provider rate limit) · ' : src.label + ' · ') + new Date().toLocaleTimeString();
+    $('lastUpdate').className = stale ? 'warn' : 'muted';
     if (canTrade()) {
       const fills = Engine.processPrices(store.acct, prices());
-      fills.forEach((f) => toast(`Filled ${f.side.toUpperCase()} ${f.qty} ${f.symbol} @ ${fmtPx(f.price)}`, 'ok'));
+      fills.forEach(announceFill);
+      autoFlattenCheck();
     }
     rollDay();
+    sampleEquity();
     save();
     if (chartData && quotes[chartData.symbol]) mergeLiveCandle(quotes[chartData.symbol]);
     renderAll();
@@ -100,9 +106,8 @@ async function loadChart() {
   const sym = store.selected;
   if (!sym) return;
   try {
-    const res = await fetch(`/api/chart?symbol=${sym}&range=${chartRange.r}&interval=${chartRange.i}`);
-    const d = await res.json();
-    if (!res.ok) throw new Error(d.error);
+    if (!src) return;
+    const d = await src.getChart(sym, chartRange.r, chartRange.i);
     if (sym !== store.selected) return;
     chartData = d;
     const { candles, ...q } = d;
@@ -117,6 +122,7 @@ async function loadChart() {
 function mergeLiveCandle(q) {
   const c = chartData.candles;
   if (!c.length || !(q.price > 0)) return;
+  if (!src.supportsHistory) { loadChart(); return; } // Finnhub: bars are rebuilt from trades
   const last = c[c.length - 1];
   last.c = q.price; last.h = Math.max(last.h, q.price); last.l = Math.min(last.l, q.price);
   drawChart();
@@ -128,6 +134,49 @@ function rollDay() {
   if (!store.dayStart || store.dayStart.date !== today) {
     store.dayStart = { date: today, equity: Engine.equity(store.acct, prices()) };
   }
+}
+
+function announceFill(f) {
+  toast(`Filled ${f.side.toUpperCase()} ${f.qty} ${f.symbol} @ ${fmtPx(f.price)}${f.realized ? ' · P&L ' + fmt$(f.realized) : ''}`, 'ok');
+  if (store.sound) beep(f.side === 'buy' ? 880 : 660);
+}
+
+let audioCtx = null;
+function beep(freq) {
+  try {
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+    o.frequency.value = freq; g.gain.setValueAtTime(0.08, audioCtx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.15);
+    o.connect(g).connect(audioCtx.destination); o.start(); o.stop(audioCtx.currentTime + 0.16);
+  } catch (_) { /* audio unavailable */ }
+}
+
+// Record equity at most once a minute (for the equity curve).
+function sampleEquity() {
+  const h = store.equityHist, now = Date.now();
+  if (h.length && now - h[h.length - 1].t < 60000) return;
+  h.push({ t: now, eq: Engine.equity(store.acct, prices()) });
+  if (h.length > 3000) h.splice(0, h.length - 3000);
+}
+
+// Optional end-of-day discipline: flatten at 15:55 ET during the regular session.
+function autoFlattenCheck() {
+  if (!store.autoFlatten || session().state !== 'open') return;
+  const { mins, date } = etParts();
+  if (mins >= 955 && store.lastAutoFlatten !== date) {
+    store.lastAutoFlatten = date;
+    if (Object.keys(store.acct.positions).length) { toast('15:55 ET — auto-flattening all positions', 'ok'); flatten(); }
+  }
+}
+
+function exportCSV() {
+  const rows = [['time', 'symbol', 'side', 'qty', 'price', 'fee', 'realized_pnl']]
+    .concat(store.acct.fills.map((f) => [new Date(f.time).toISOString(), f.symbol, f.side, f.qty, f.price, f.fee, f.realized]));
+  const blob = new Blob([rows.map((r) => r.join(',')).join('\n')], { type: 'text/csv' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = `nyse-sim-trades-${etParts().date}.csv`; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
 
 // ---------- rendering ----------
@@ -177,7 +226,7 @@ function renderTicketQuote() {
   if (!q || !q.price) { box.innerHTML = s ? '<span class="muted">Loading quote…</span>' : '—'; return; }
   const pos = store.acct.positions[s];
   box.innerHTML = `<div class="big">${fmtPx(q.price)} <small class="${cls(q.change)}">${q.change >= 0 ? '+' : ''}${q.change.toFixed(2)} (${fmtPct(q.changePct)})</small></div>
-    <div class="muted">H ${fmtPx(q.dayHigh)} · L ${fmtPx(q.dayLow)} · Vol ${(q.volume || 0).toLocaleString()}</div>
+    <div class="muted">H ${fmtPx(q.dayHigh)} · L ${fmtPx(q.dayLow)} · Vol ${q.volume != null ? q.volume.toLocaleString() : '—'}</div>
     <div class="muted">Position: ${pos ? `${pos.qty} @ ${fmtPx(pos.avgPrice)}` : 'flat'}</div>`;
 }
 
@@ -194,7 +243,13 @@ function renderEstimate() {
   if (!q || !q.price || !(qty > 0)) { $('oEst').textContent = '—'; return; }
   const px = type === 'market' ? q.price : Number($('oPrice').value) || q.price;
   const fee = Engine.commissionFor(store.acct.settings, qty);
-  $('oEst').innerHTML = `Est. value ${fmt$(px * qty)} · commission ${fmt$(fee)}<br>Buying power ${fmt$(Engine.buyingPower(store.acct, prices()))}`;
+  let rr = '';
+  if ($('oBracket').checked) {
+    const sl = Number($('oSL').value), tp = Number($('oTP').value);
+    const risk = sl ? Math.abs(px - sl) * qty : 0, reward = tp ? Math.abs(tp - px) * qty : 0;
+    rr = `<br>Risk <span class="down">${fmt$(risk)}</span> · Reward <span class="up">${fmt$(reward)}</span>${risk && reward ? ` · R:R 1:${(reward / risk).toFixed(1)}` : ''}`;
+  }
+  $('oEst').innerHTML = `Est. value ${fmt$(px * qty)} · commission ${fmt$(fee)}<br>Buying power ${fmt$(Engine.buyingPower(store.acct, prices()))}${rr}`;
 }
 
 function renderTab() {
@@ -211,13 +266,14 @@ function renderTab() {
     const rows = a.orders.filter((o) => o.status === 'open');
     if (!rows.length) { body.innerHTML = '<div class="empty">No working orders.</div>'; return; }
     body.innerHTML = `<table class="tbl"><thead><tr><th>#</th><th>Symbol</th><th>Side</th><th>Type</th><th class="r">Qty</th><th class="r">Price</th><th class="r">Last</th><th>Placed</th><th></th></tr></thead><tbody>` +
-      rows.map((o) => `<tr><td>${o.id}</td><td class="sym">${o.symbol}</td><td class="${o.side === 'buy' ? 'up' : 'down'}">${o.side.toUpperCase()}</td><td>${o.type.toUpperCase()}</td><td class="r">${o.qty}</td><td class="r">${fmtPx(o.limitPrice ?? o.stopPrice)}</td><td class="r">${fmtPx(px[o.symbol])}</td><td>${new Date(o.createdAt).toLocaleTimeString()}</td><td><button class="btn small" data-cancel="${o.id}">Cancel</button></td></tr>`).join('') + '</tbody></table>';
+      rows.map((o) => `<tr><td>${o.id}</td><td class="sym">${o.symbol}</td><td class="${o.side === 'buy' ? 'up' : 'down'}">${o.side.toUpperCase()}</td><td>${o.type.toUpperCase()}${o.tag ? ` <span class="tag">${o.tag}</span>` : ''}${o.bracket ? ' <span class="tag">+BRACKET</span>' : ''}</td><td class="r">${o.qty}</td><td class="r">${fmtPx(o.limitPrice ?? o.stopPrice)}</td><td class="r">${fmtPx(px[o.symbol])}</td><td>${new Date(o.createdAt).toLocaleTimeString()}</td><td><button class="btn small" data-cancel="${o.id}">Cancel</button></td></tr>`).join('') + '</tbody></table>';
   } else if (activeTab === 'fills') {
     const rows = a.fills.slice().reverse();
     if (!rows.length) { body.innerHTML = '<div class="empty">No trades yet.</div>'; return; }
-    body.innerHTML = `<table class="tbl"><thead><tr><th>Time</th><th>Symbol</th><th>Side</th><th class="r">Qty</th><th class="r">Price</th><th class="r">Fee</th><th class="r">Realized P&amp;L</th></tr></thead><tbody>` +
+    body.innerHTML = `<div class="tab-tools"><button class="btn small" data-export="1">Export CSV</button></div><table class="tbl"><thead><tr><th>Time</th><th>Symbol</th><th>Side</th><th class="r">Qty</th><th class="r">Price</th><th class="r">Fee</th><th class="r">Realized P&amp;L</th></tr></thead><tbody>` +
       rows.map((f) => `<tr><td>${new Date(f.time).toLocaleString()}</td><td class="sym">${f.symbol}</td><td class="${f.side === 'buy' ? 'up' : 'down'}">${f.side.toUpperCase()}</td><td class="r">${f.qty}</td><td class="r">${fmtPx(f.price)}</td><td class="r">${fmt$(f.fee)}</td><td class="r ${cls(f.realized)}">${f.realized ? fmt$(f.realized) : ''}</td></tr>`).join('') + '</tbody></table>';
   } else {
+    requestAnimationFrame(drawEquityCurve);
     const closes = a.fills.filter((f) => f.realized !== 0);
     const wins = closes.filter((f) => f.realized > 0), losses = closes.filter((f) => f.realized < 0);
     const sum = (arr) => arr.reduce((t, f) => t + f.realized, 0);
@@ -235,9 +291,44 @@ function renderTab() {
       stat('Profit factor', losses.length ? (sum(wins) / -sum(losses)).toFixed(2) : '—') +
       stat('Commissions paid', fmt$(a.commissions)) +
       stat('Day trades (5 sessions)', dt, dt >= 4 && eq < 25000 ? 'down' : '') +
-      '</div>' +
+      '</div><div class="eq-wrap"><div class="muted eq-title">Equity curve</div><canvas id="eqCurve"></canvas></div>' +
       (dt >= 4 && eq < 25000 ? '<p class="empty down">Pattern Day Trader flag: 4+ day trades in 5 sessions with under $25,000 equity would restrict a real margin account.</p>' : '');
   }
+}
+
+function drawEquityCurve() {
+  const cv = $('eqCurve'); if (!cv) return;
+  const h = store.equityHist.concat([{ t: Date.now(), eq: Engine.equity(store.acct, prices()) }]);
+  const dpr = window.devicePixelRatio || 1, W = cv.clientWidth, H = cv.clientHeight;
+  cv.width = W * dpr; cv.height = H * dpr;
+  const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const base = store.acct.settings.startingCash;
+  let lo = Math.min(base, ...h.map((p) => p.eq)), hi = Math.max(base, ...h.map((p) => p.eq));
+  const pad = (hi - lo) * 0.1 || base * 0.001; lo -= pad; hi += pad;
+  const y = (v) => 4 + (hi - v) / (hi - lo) * (H - 8);
+  const x = (i) => h.length > 1 ? 50 + i / (h.length - 1) * (W - 54) : 50;
+  g.font = '10px ui-sans-serif, system-ui'; g.fillStyle = '#7d8a99'; g.textBaseline = 'middle';
+  g.fillText(fmt$(hi).replace(/\.\d+$/, ''), 0, 8); g.fillText(fmt$(lo).replace(/\.\d+$/, ''), 0, H - 8);
+  g.setLineDash([3, 4]); g.strokeStyle = '#7d8a99'; g.beginPath(); g.moveTo(50, y(base)); g.lineTo(W, y(base)); g.stroke(); g.setLineDash([]);
+  const last = h[h.length - 1].eq;
+  g.strokeStyle = last >= base ? '#22c55e' : '#ef4444'; g.lineWidth = 1.5; g.beginPath();
+  h.forEach((p, i) => (i ? g.lineTo(x(i), y(p.eq)) : g.moveTo(x(i), y(p.eq)))); g.stroke(); g.lineWidth = 1;
+}
+
+function ema(vals, n) {
+  const k = 2 / (n + 1), out = []; let e;
+  vals.forEach((v, i) => { e = i ? v * k + e * (1 - k) : v; out.push(e); });
+  return out;
+}
+// VWAP resets each ET trading day.
+function vwap(candles) {
+  let pv = 0, vol = 0, day = '';
+  return candles.map((c) => {
+    const d = new Date(c.t).toLocaleDateString('en-US', { timeZone: 'America/New_York' });
+    if (d !== day) { day = d; pv = 0; vol = 0; }
+    const tp = (c.h + c.l + c.c) / 3; pv += tp * c.v; vol += c.v;
+    return vol ? pv / vol : null;
+  });
 }
 
 // ---------- chart (canvas) ----------
@@ -256,7 +347,11 @@ function drawChart() {
   $('chartSub').innerHTML = `${esc(d.exchangeName || d.exchange)} · ${fmtPx(d.price)} <span class="${cls(d.change)}">${fmtPct(d.changePct || 0)}</span>`;
 
   const candles = d.candles;
-  if (!candles.length) { g.fillStyle = '#7d8a99'; g.fillText('No intraday data yet', 20, 30); return; }
+  if (!candles.length) {
+    g.fillStyle = '#7d8a99'; g.font = '13px ui-sans-serif, system-ui';
+    g.fillText(src && !src.supportsHistory ? 'Building chart from live trades… (Finnhub mode has no history; bars appear as trades print)' : 'No intraday data yet', 20, 30);
+    return;
+  }
   const padR = 64, padB = 22, volH = 60;
   const plotW = W - padR, plotH = H - padB - volH - 8;
   let lo = Infinity, hi = -Infinity, vmax = 0;
@@ -265,12 +360,12 @@ function drawChart() {
   const levels = [];
   if (pos) levels.push({ p: pos.avgPrice, color: '#3b82f6', label: `AVG ${pos.qty}` });
   store.acct.orders.filter((o) => o.status === 'open' && o.symbol === d.symbol)
-    .forEach((o) => levels.push({ p: o.limitPrice ?? o.stopPrice, color: '#f59e0b', label: `${o.side.toUpperCase()} ${o.type.toUpperCase()}` }));
+    .forEach((o) => levels.push({ p: o.limitPrice ?? o.stopPrice, label: o.tag ? `${o.tag === 'SL' ? 'STOP-LOSS' : 'TAKE-PROFIT'}` : `${o.side.toUpperCase()} ${o.type.toUpperCase()}`, color: o.tag === 'SL' ? '#ef4444' : o.tag === 'TP' ? '#22c55e' : '#f59e0b' }));
   levels.forEach((l) => { lo = Math.min(lo, l.p); hi = Math.max(hi, l.p); });
   if (d.prevClose && d.prevClose > lo * 0.97 && d.prevClose < hi * 1.03) { lo = Math.min(lo, d.prevClose); hi = Math.max(hi, d.prevClose); }
   const pad = (hi - lo) * 0.06 || 1; lo -= pad; hi += pad;
   const y = (p) => 6 + (hi - p) / (hi - lo) * plotH;
-  const step = plotW / candles.length, bw = Math.max(1, step * 0.7);
+  const step = plotW / Math.max(candles.length, 60), bw = Math.max(1, step * 0.7); // min 60 slots so sparse charts aren't stretched
 
   // grid + price axis
   g.font = '11px ui-sans-serif, system-ui'; g.textBaseline = 'middle';
@@ -306,6 +401,17 @@ function drawChart() {
     g.fillRect(x - bw / 2, volTop + volH - vh, bw, vh);
     g.globalAlpha = 1;
   });
+  // indicators
+  const line = (vals, color) => {
+    g.strokeStyle = color; g.lineWidth = 1.3; g.beginPath(); let started = false;
+    vals.forEach((v, i) => { if (v == null) return; const xx = i * step + step / 2; started ? g.lineTo(xx, y(v)) : g.moveTo(xx, y(v)); started = true; });
+    g.stroke(); g.lineWidth = 1;
+  };
+  const closes = candles.map((c) => c.c);
+  if (ind.vwap && candles.some((c) => c.v)) line(vwap(candles), '#a855f7');
+  if (ind.ema9) line(ema(closes, 9), '#38bdf8');
+  if (ind.ema21) line(ema(closes, 21), '#f472b6');
+
   // position / order levels
   g.textBaseline = 'middle';
   levels.forEach((l) => {
@@ -355,7 +461,7 @@ function submit(req) {
   const q = quotes[req.symbol];
   const r = Engine.placeOrder(store.acct, req, q, prices());
   if (!r.ok) return toast(r.error, 'err');
-  if (r.fill) toast(`Filled ${r.fill.side.toUpperCase()} ${r.fill.qty} ${r.fill.symbol} @ ${fmtPx(r.fill.price)}${r.fill.realized ? ' · P&L ' + fmt$(r.fill.realized) : ''}`, 'ok');
+  if (r.fill) announceFill(r.fill);
   else toast(`Working: ${req.side.toUpperCase()} ${r.order.qty} ${r.order.symbol} ${r.order.type.toUpperCase()} @ ${fmtPx(r.order.limitPrice ?? r.order.stopPrice)}`);
   save(); renderAll(); drawChart();
 }
@@ -371,9 +477,7 @@ async function addSymbol(raw) {
   if (!s) return;
   if (store.watch.includes(s)) return selectSymbol(s);
   try {
-    const res = await fetch('/api/chart?symbol=' + encodeURIComponent(s));
-    const d = await res.json();
-    if (!res.ok) throw new Error(d.error || 'Not found');
+    const d = await src.lookup(s);
     if (!d.isNYSE) return toast(`${s} trades on ${d.exchangeName || d.exchange}, not the NYSE.`, 'err');
     const { candles, ...q } = d; quotes[s] = q;
     store.watch.push(s); save();
@@ -427,6 +531,7 @@ $('orderForm').addEventListener('submit', (e) => {
     symbol: $('oSymbol').value.trim().toUpperCase(), side, qty: $('oQty').value, type,
     limitPrice: type === 'limit' ? Number($('oPrice').value) : undefined,
     stopPrice: type === 'stop' ? Number($('oPrice').value) : undefined,
+    ...($('oBracket').checked ? { stopLoss: Number($('oSL').value) || 0, takeProfit: Number($('oTP').value) || 0 } : {}),
   });
 });
 $('tabs').addEventListener('click', (e) => {
@@ -436,6 +541,7 @@ $('tabs').addEventListener('click', (e) => {
   renderTab();
 });
 $('tabBody').addEventListener('click', (e) => {
+  if (e.target.dataset.export) exportCSV();
   if (e.target.dataset.close) closePosition(e.target.dataset.close);
   if (e.target.dataset.cancel) { Engine.cancelOrder(store.acct, Number(e.target.dataset.cancel)); save(); renderTab(); drawChart(); }
 });
@@ -459,33 +565,91 @@ document.addEventListener('keydown', (e) => {
   else if (k === 'f') flatten();
 });
 
+// bracket: prefill stop-loss / take-profit around the entry using a % offset
+function prefillBracket() {
+  const q = quotes[$('oSymbol').value.toUpperCase()];
+  if (!q || !q.price) return;
+  const t = $('oType').value;
+  const entry = t === 'market' ? q.price : Number($('oPrice').value) || q.price;
+  const pct = Number($('oRisk').value) / 100 || 0.005, dir = side === 'buy' ? 1 : -1;
+  $('oSL').value = (entry * (1 - dir * pct)).toFixed(2);
+  $('oTP').value = (entry * (1 + dir * pct * 2)).toFixed(2);
+  renderEstimate();
+}
+$('oBracket').addEventListener('change', () => { $('bracketFields').classList.toggle('hidden', !$('oBracket').checked); if ($('oBracket').checked) prefillBracket(); });
+$('oRisk').addEventListener('change', prefillBracket);
+$('sideSeg').addEventListener('click', () => { if ($('oBracket').checked) prefillBracket(); });
+['oSL', 'oTP'].forEach((id) => $(id).addEventListener('input', renderEstimate));
+$('indSeg').addEventListener('click', (e) => {
+  const b = e.target.closest('button'); if (!b) return;
+  ind[b.dataset.ind] = !ind[b.dataset.ind]; b.classList.toggle('on', ind[b.dataset.ind]); drawChart();
+});
+
 // settings
 $('btnSettings').addEventListener('click', () => {
   const s = store.acct.settings;
   $('sCash').value = s.startingCash; $('sLev').value = String(s.leverage);
   $('sComm').value = s.commissionPerShare; $('sMinComm').value = s.minCommission; $('sSlip').value = s.slippageBps;
   $('sOutside').checked = store.allowOutside;
+  $('sAutoFlat').checked = store.autoFlatten; $('sSound').checked = store.sound;
+  $('sKey').value = store.finnhubKey || '';
   $('settingsDlg').showModal();
 });
 $('settingsDlg').addEventListener('close', () => {
   store.allowOutside = $('sOutside').checked;
+  store.autoFlatten = $('sAutoFlat').checked; store.sound = $('sSound').checked;
+  const key = $('sKey').value.trim();
+  if (key !== (store.finnhubKey || '')) { store.finnhubKey = key; save(); if (!(src instanceof DataSources.ServerSource)) location.reload(); }
   if ($('settingsDlg').returnValue === 'reset') {
     if (!confirm('Reset the account? All positions and trade history will be erased.')) { save(); renderAll(); return; }
     store.acct = Engine.createAccount({
       startingCash: Number($('sCash').value) || 100000, leverage: Number($('sLev').value),
       commissionPerShare: Number($('sComm').value), minCommission: Number($('sMinComm').value), slippageBps: Number($('sSlip').value),
     });
-    store.dayStart = null;
+    store.dayStart = null; store.equityHist = [];
     toast('Account reset.', 'ok');
   }
   save(); renderAll(); drawChart();
 });
 
 // ---------- boot ----------
+// Prefer the bundled server (full history). On static hosting (e.g. GitHub
+// Pages) fall back to Finnhub direct-from-browser with the user's free key.
+async function pickSource() {
+  if (await DataSources.ServerSource.available()) return new DataSources.ServerSource();
+  if (store.finnhubKey) return new DataSources.FinnhubSource(store.finnhubKey);
+  return null;
+}
+
+function askForKey() {
+  const dlg = $('keyDlg');
+  dlg.showModal();
+  $('keyForm').onsubmit = async (e) => {
+    e.preventDefault();
+    const key = $('keyInput').value.trim();
+    $('keyErr').textContent = 'Checking…';
+    try {
+      await DataSources.FinnhubSource.verify(key);
+      store.finnhubKey = key; save();
+      dlg.close();
+      start(new DataSources.FinnhubSource(key));
+    } catch (err) { $('keyErr').textContent = err.message; }
+  };
+}
+
+function start(source) {
+  src = source;
+  if (!src.supportsHistory) {
+    // No historical bars in Finnhub mode: only minute-based views make sense.
+    [...$('rangeSeg').children].forEach((b) => { b.disabled = b.dataset.r !== '1d'; });
+  }
+  loadChart();
+  pollQuotes();
+  setInterval(pollQuotes, src.supportsHistory ? QUOTE_MS : 2000);
+  setInterval(loadChart, CHART_MS);
+}
+
 $('oSymbol').value = store.selected || store.watch[0] || '';
 renderAll();
-loadChart();
-pollQuotes();
-setInterval(pollQuotes, QUOTE_MS);
-setInterval(loadChart, CHART_MS);
 setInterval(renderHeader, 30000);
+pickSource().then((s) => (s ? start(s) : askForKey()));

@@ -48,6 +48,11 @@
           <h2 id="chartTitle">—</h2>
           <div id="chartSub" class="muted"></div>
         </div>
+        <div class="seg" id="indSeg" title="Indicators">
+          <button data-ind="vwap" class="on">VWAP</button>
+          <button data-ind="ema9" class="on">EMA 9</button>
+          <button data-ind="ema21">EMA 21</button>
+        </div>
         <div class="seg" id="rangeSeg">
           <button data-r="1d" data-i="1m" class="on">1D · 1m</button>
           <button data-r="1d" data-i="5m">1D · 5m</button>
@@ -76,6 +81,14 @@
         </div>
         <div class="field hidden" id="priceField"><label id="priceLabel">Limit Price</label><input id="oPrice" type="number" step="0.01" min="0"></div>
         <div class="field"><label>Shares</label><input id="oQty" type="number" min="1" step="1" value="100"></div>
+        <label class="check"><input type="checkbox" id="oBracket"> Attach bracket (stop-loss + take-profit)</label>
+        <div id="bracketFields" class="bracket hidden">
+          <div class="field"><label>Stop-loss</label><input id="oSL" type="number" step="0.01" min="0"></div>
+          <div class="field"><label>Take-profit</label><input id="oTP" type="number" step="0.01" min="0"></div>
+          <div class="field"><label>Risk %</label>
+            <select id="oRisk"><option value="0.25">0.25%</option><option value="0.5" selected>0.5%</option><option value="1">1%</option><option value="2">2%</option></select>
+          </div>
+        </div>
         <div class="quick">
           <button type="button" data-q="10">10</button><button type="button" data-q="50">50</button>
           <button type="button" data-q="100">100</button><button type="button" data-q="500">500</button>
@@ -109,6 +122,9 @@
       <div class="field"><label>Minimum commission ($)</label><input id="sMinComm" type="number" min="0" step="0.5"></div>
       <div class="field"><label>Slippage (bps)</label><input id="sSlip" type="number" min="0" step="1"></div>
       <label class="check"><input id="sOutside" type="checkbox"> Allow trading outside regular hours (fills at latest extended-hours / last price)</label>
+      <label class="check"><input id="sAutoFlat" type="checkbox"> Auto-flatten all positions at 15:55 ET (no overnight holds)</label>
+      <label class="check"><input id="sSound" type="checkbox"> Sound on fills</label>
+      <div class="field"><label>Finnhub API key (only used when hosted without the server, e.g. GitHub Pages)</label><input id="sKey" autocomplete="off" spellcheck="false"></div>
       <p class="muted">Changing starting cash, leverage or fees resets the account.</p>
       <div class="dlg-actions">
         <button value="cancel" class="btn">Cancel</button>
@@ -117,9 +133,25 @@
     </form>
   </dialog>
 
+  <dialog id="keyDlg">
+    <form id="keyForm">
+      <h2>Connect live market data</h2>
+      <p>This copy is running without its data server (for example on GitHub Pages), so it streams real-time NYSE trades straight from <a href="https://finnhub.io/register" target="_blank" rel="noopener">Finnhub</a>. A free API key is enough.</p>
+      <ol class="muted">
+        <li>Sign up free at <a href="https://finnhub.io/register" target="_blank" rel="noopener">finnhub.io/register</a></li>
+        <li>Copy the API key from your dashboard and paste it below</li>
+      </ol>
+      <div class="field"><label>Finnhub API key</label><input id="keyInput" required autocomplete="off" spellcheck="false"></div>
+      <div id="keyErr" class="down"></div>
+      <p class="muted">The key is stored only in this browser (localStorage) and sent only to finnhub.io. For full intraday chart history, run the app locally with <code>npm start</code> instead.</p>
+      <div class="dlg-actions"><button class="btn submit buy">Connect</button></div>
+    </form>
+  </dialog>
+
   <div id="toasts"></div>
 
   <script src="engine.js"></script>
+  <script src="data.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

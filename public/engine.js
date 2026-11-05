@@ -109,7 +109,28 @@
       qty: order.qty, price, fee, realized: round2(realized), time,
     };
     acct.fills.push(fill);
+
+    // One-cancels-other: a filled bracket leg cancels its sibling.
+    if (order.ocoGroup != null) {
+      acct.orders.forEach((o) => {
+        if (o !== order && o.status === 'open' && o.ocoGroup === order.ocoGroup) { o.status = 'cancelled'; o.reason = 'OCO sibling filled'; }
+      });
+    }
+    // Flat: exit-only orders for this symbol no longer have anything to exit.
+    if (!acct.positions[order.symbol]) {
+      acct.orders.forEach((o) => {
+        if (o.status === 'open' && o.reduceOnly && o.symbol === order.symbol) { o.status = 'cancelled'; o.reason = 'Position closed'; }
+      });
+    }
+    if (order.bracket) spawnBracket(acct, order, time);
     return fill;
+  }
+
+  function spawnBracket(acct, parent, time) {
+    const exitSide = parent.side === 'buy' ? 'sell' : 'buy';
+    const base = { symbol: parent.symbol, side: exitSide, qty: parent.qty, status: 'open', createdAt: time, reduceOnly: true, ocoGroup: parent.id, parentId: parent.id };
+    if (parent.bracket.stopLoss) acct.orders.push({ ...base, id: acct.nextId++, type: 'stop', limitPrice: null, stopPrice: parent.bracket.stopLoss, tag: 'SL' });
+    if (parent.bracket.takeProfit) acct.orders.push({ ...base, id: acct.nextId++, type: 'limit', limitPrice: parent.bracket.takeProfit, stopPrice: null, tag: 'TP' });
   }
 
   // Order: { symbol, side: 'buy'|'sell', qty, type: 'market'|'limit'|'stop', limitPrice?, stopPrice? }
@@ -126,8 +147,18 @@
     if (type === 'limit' && !(req.limitPrice > 0)) return { ok: false, error: 'Limit price required' };
     if (type === 'stop' && !(req.stopPrice > 0)) return { ok: false, error: 'Stop price required' };
 
+    let bracket = null;
+    const sl = Number(req.stopLoss) || 0, tp = Number(req.takeProfit) || 0;
+    if (sl > 0 || tp > 0) {
+      const entry = type === 'limit' ? round2(req.limitPrice) : type === 'stop' ? round2(req.stopPrice) : quote.price;
+      const long = req.side === 'buy';
+      if (sl > 0 && (long ? sl >= entry : sl <= entry)) return { ok: false, error: `Stop-loss must be ${long ? 'below' : 'above'} the entry price (${entry.toFixed(2)})` };
+      if (tp > 0 && (long ? tp <= entry : tp >= entry)) return { ok: false, error: `Take-profit must be ${long ? 'above' : 'below'} the entry price (${entry.toFixed(2)})` };
+      bracket = { stopLoss: sl > 0 ? round2(sl) : null, takeProfit: tp > 0 ? round2(tp) : null };
+    }
+
     const order = {
-      id: acct.nextId++, symbol, side: req.side, qty, type,
+      id: acct.nextId++, symbol, side: req.side, qty, type, bracket,
       limitPrice: type === 'limit' ? round2(req.limitPrice) : null,
       stopPrice: type === 'stop' ? round2(req.stopPrice) : null,
       status: 'open', createdAt: time,
@@ -148,6 +179,12 @@
   function tryFill(acct, order, last, time) {
     if (order.status !== 'open') return null;
     const s = acct.settings;
+    if (order.reduceOnly) {
+      const pos = acct.positions[order.symbol];
+      const reduces = pos && (order.side === 'sell' ? pos.qty > 0 : pos.qty < 0);
+      if (!reduces) { order.status = 'cancelled'; order.reason = 'Position closed'; return null; }
+      order.qty = Math.min(order.qty, Math.abs(pos.qty));
+    }
     if (order.type === 'market') return applyFill(acct, order, fillPrice(s, order.side, last), time);
     if (order.type === 'limit') {
       const hit = order.side === 'buy' ? last <= order.limitPrice : last >= order.limitPrice;

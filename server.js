@@ -19,14 +19,37 @@ const SYMBOL_RE = /^[A-Z][A-Z0-9.\-]{0,9}$/;
 const RANGES = new Set(['1d', '5d', '1mo']);
 const INTERVALS = new Set(['1m', '2m', '5m', '15m', '30m', '60m']);
 
+let backoffUntil = 0; // set when Yahoo rate-limits us (HTTP 429)
+const STALE_MAX_MS = 10 * 60 * 1000;
+
 async function fetchChart(symbol, range = '1d', interval = '1m') {
   const key = `${symbol}|${range}|${interval}`;
   const hit = cache.get(key);
   if (hit && Date.now() - hit.at < CACHE_MS) return hit.data;
+  // While backing off, keep serving the last good data instead of hammering upstream.
+  if (Date.now() < backoffUntil) {
+    if (hit && Date.now() - hit.at < STALE_MAX_MS) return { ...hit.data, stale: true };
+    const err = new Error('Rate limited by data provider, retrying shortly');
+    err.status = 503;
+    throw err;
+  }
 
   const url = `${UPSTREAM}${encodeURIComponent(symbol)}?range=${range}&interval=${interval}&includePrePost=true`;
-  const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0 (NYSE-Sim)' } });
-  const body = await res.json().catch(() => null);
+  let res, body;
+  try {
+    res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0 (NYSE-Sim)' }, signal: AbortSignal.timeout(8000) });
+    body = await res.json().catch(() => null);
+  } catch (e) {
+    if (hit) return { ...hit.data, stale: true };
+    const err = new Error('Data provider unreachable: ' + e.message);
+    err.status = 502;
+    throw err;
+  }
+  if (res.status === 429) {
+    backoffUntil = Date.now() + 15000;
+    console.warn('Upstream rate limit hit; backing off 15s');
+    if (hit) return { ...hit.data, stale: true };
+  }
   const result = body && body.chart && body.chart.result && body.chart.result[0];
   if (!res.ok || !result) {
     const msg = (body && body.chart && body.chart.error && body.chart.error.description) || `Upstream HTTP ${res.status}`;
@@ -94,6 +117,7 @@ function serveStatic(req, res, pathname) {
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://localhost');
   try {
+    if (url.pathname === '/api/health') return sendJSON(res, 200, { ok: true, source: 'yahoo' });
     if (url.pathname === '/api/chart') {
       const symbol = (url.searchParams.get('symbol') || '').toUpperCase();
       const range = url.searchParams.get('range') || '1d';

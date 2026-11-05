@@ -81,3 +81,43 @@ test('invalid orders are rejected', () => {
   assert.strictEqual(E.placeOrder(a, { symbol: 'KO', side: 'buy', qty: 5 }, null, {}).ok, false);
   assert.strictEqual(E.placeOrder(a, { symbol: 'KO', side: 'buy', qty: 5, type: 'limit' }, { price: 60 }, {}).ok, false);
 });
+
+test('bracket order spawns OCO stop-loss and take-profit', () => {
+  const a = E.createAccount({ ...noFees, leverage: 4 });
+  const r = E.placeOrder(a, { symbol: 'KO', side: 'buy', qty: 100, type: 'market', stopLoss: 95, takeProfit: 98 }, { price: 96 }, { KO: 96 });
+  assert.ok(r.ok, r.error);
+  const legs = a.orders.filter((o) => o.status === 'open');
+  assert.deepStrictEqual(legs.map((o) => o.tag).sort(), ['SL', 'TP']);
+  assert.strictEqual(E.processPrices(a, { KO: 97 }).length, 0);
+  const f = E.processPrices(a, { KO: 98.2 });
+  assert.strictEqual(f.length, 1);
+  near(f[0].price, 98.2);
+  assert.deepStrictEqual(a.positions, {});
+  assert.ok(a.orders.every((o) => o.status !== 'open'), 'stop-loss leg cancelled');
+});
+
+test('bracket legs cancel when position is closed manually', () => {
+  const a = E.createAccount({ ...noFees, leverage: 4 });
+  E.placeOrder(a, { symbol: 'F', side: 'sell', qty: 100, type: 'market', stopLoss: 13, takeProfit: 11 }, { price: 12 }, { F: 12 });
+  assert.strictEqual(a.positions.F.qty, -100);
+  E.placeOrder(a, { symbol: 'F', side: 'buy', qty: 100, type: 'market' }, { price: 12 }, { F: 12 });
+  assert.ok(a.orders.every((o) => o.status !== 'open'));
+  assert.strictEqual(E.processPrices(a, { F: 14 }).length, 0, 'no stray short-cover fills');
+  assert.deepStrictEqual(a.positions, {});
+});
+
+test('bracket prices are validated against entry', () => {
+  const a = E.createAccount();
+  const r = E.placeOrder(a, { symbol: 'KO', side: 'buy', qty: 10, type: 'market', stopLoss: 97 }, { price: 96 }, { KO: 96 });
+  assert.strictEqual(r.ok, false);
+  assert.match(r.error, /below/);
+});
+
+test('limit entry with bracket only arms legs after the entry fills', () => {
+  const a = E.createAccount({ ...noFees, leverage: 4 });
+  E.placeOrder(a, { symbol: 'JPM', side: 'buy', qty: 10, type: 'limit', limitPrice: 200, stopLoss: 195, takeProfit: 210 }, { price: 205 }, { JPM: 205 });
+  assert.strictEqual(a.orders.filter((o) => o.status === 'open').length, 1);
+  E.processPrices(a, { JPM: 199 });
+  assert.strictEqual(a.positions.JPM.qty, 10);
+  assert.strictEqual(a.orders.filter((o) => o.status === 'open').length, 2);
+});
