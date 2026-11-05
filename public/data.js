@@ -26,6 +26,9 @@ class ServerSource {
     if (!res.ok) throw new Error(d.error || res.status);
     return d;
   }
+  search(q) {
+    return fetch('api/search?q=' + encodeURIComponent(q)).then((r) => r.json());
+  }
   lookup(symbol) { return this.getChart(symbol, '1d', '1m'); }
 }
 
@@ -190,6 +193,17 @@ class FinnhubSource {
       else out.push({ ...b, t });
     }
     return { ...q, candles: out };
+  }
+
+  // Finnhub /search: returns matching symbols; keep common stocks only.
+  async search(q) {
+    const r = await fetch(`https://finnhub.io/api/v1/search?q=${encodeURIComponent(q)}&token=${encodeURIComponent(this.key)}`);
+    if (!r.ok) throw new Error('Search unavailable right now');
+    const body = await r.json();
+    return (body.result || [])
+      .filter((x) => x.type === 'Common Stock' && x.symbol && !x.symbol.includes('.'))
+      .slice(0, 8)
+      .map((x) => ({ symbol: x.symbol, name: x.description || x.symbol, exchange: '' }));
   }
 
   async lookup(symbol) {

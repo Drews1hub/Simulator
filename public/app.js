@@ -512,7 +512,62 @@ async function addSymbol(raw) {
   }
 }
 
-$('addForm').addEventListener('submit', (e) => { e.preventDefault(); addSymbol($('addSymbol').value); $('addSymbol').value = ''; });
+// ---- company / ticker search with suggestions ----
+let suggestions = [], suggestQuery = '', suggestSeq = 0, suggestTimer = null, suggestIdx = -1;
+function hideSuggest() { suggestions = []; suggestIdx = -1; $('suggest').classList.add('hidden'); $('suggest').innerHTML = ''; }
+function renderSuggest() {
+  const ul = $('suggest');
+  if (!suggestions.length) return hideSuggest();
+  ul.innerHTML = suggestions.map((x, i) => `<li role="option" data-i="${i}" class="${i === suggestIdx ? 'on' : ''}">
+      <b>${esc(x.symbol)}</b><span>${esc(x.name)}</span>${x.exchange ? `<em>${esc(x.exchange)}</em>` : ''}</li>`).join('');
+  ul.classList.remove('hidden');
+}
+function pickSuggest(i) {
+  const x = suggestions[i];
+  if (!x) return;
+  hideSuggest();
+  $('addSymbol').value = '';
+  addSymbol(x.symbol);
+}
+function runSearch(text) {
+  const seq = ++suggestSeq;
+  if (!src || text.length < 2 || !src.search) return hideSuggest();
+  src.search(text).then((list) => {
+    if (seq !== suggestSeq) return; // a newer keystroke has superseded this one
+    suggestions = list; suggestQuery = text; suggestIdx = list.length ? 0 : -1; renderSuggest();
+  }).catch(() => { if (seq === suggestSeq) hideSuggest(); });
+}
+$('addSymbol').addEventListener('input', (e) => {
+  clearTimeout(suggestTimer);
+  const t = e.target.value.trim();
+  suggestTimer = setTimeout(() => runSearch(t), 250);
+});
+$('addSymbol').addEventListener('keydown', (e) => {
+  if (!suggestions.length) return;
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    e.preventDefault();
+    suggestIdx = (suggestIdx + (e.key === 'ArrowDown' ? 1 : -1) + suggestions.length) % suggestions.length;
+    renderSuggest();
+  } else if (e.key === 'Escape') hideSuggest();
+});
+$('suggest').addEventListener('mousedown', (e) => { // mousedown so the input doesn't blur first
+  const li = e.target.closest('li[data-i]');
+  if (li) { e.preventDefault(); pickSuggest(Number(li.dataset.i)); }
+});
+$('addForm').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const typed = $('addSymbol').value.trim();
+  // Suggestions only count if they were fetched for exactly what's in the box now.
+  const current = suggestions.length && suggestQuery === typed;
+  if (current) {
+    const exact = suggestions.findIndex((x) => x.symbol === typed.toUpperCase());
+    return pickSuggest(exact >= 0 ? exact : Math.max(0, suggestIdx));
+  }
+  hideSuggest();
+  addSymbol(typed);
+  $('addSymbol').value = '';
+});
+document.addEventListener('click', (e) => { if (!e.target.closest('#addForm, #suggest')) hideSuggest(); });
 $('watchTable').addEventListener('click', (e) => {
   const rm = e.target.dataset.rm;
   if (rm) { store.watch = store.watch.filter((x) => x !== rm); save(); renderWatch(); return; }

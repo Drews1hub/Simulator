@@ -96,6 +96,24 @@ function normalize(r) {
   };
 }
 
+// Company-name / ticker search. Yahoo's public search endpoint; cached for 10 min.
+const searchCache = new Map();
+async function searchCompanies(q) {
+  const key = q.toLowerCase();
+  const hit = searchCache.get(key);
+  if (hit && Date.now() - hit.at < 600000) return hit.data;
+  const url = `https://query2.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(q)}&quotesCount=8&newsCount=0`;
+  const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0 (NYSE-Sim)' }, signal: AbortSignal.timeout(8000) });
+  if (!res.ok) throw Object.assign(new Error('Search unavailable right now'), { status: 502 });
+  const body = await res.json();
+  const data = (body.quotes || [])
+    .filter((x) => x.quoteType === 'EQUITY' && x.symbol && !x.symbol.includes('=') && !x.symbol.includes('.'))
+    .slice(0, 8)
+    .map((x) => ({ symbol: x.symbol, name: x.longname || x.shortname || x.symbol, exchange: x.exchDisp || x.exchange || '' }));
+  searchCache.set(key, { at: Date.now(), data });
+  return data;
+}
+
 function sendJSON(res, status, obj) {
   res.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
   res.end(JSON.stringify(obj));
@@ -117,6 +135,11 @@ function serveStatic(req, res, pathname) {
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://localhost');
   try {
+    if (url.pathname === '/api/search') {
+      const q = (url.searchParams.get('q') || '').trim().slice(0, 60);
+      if (q.length < 2) return sendJSON(res, 200, []);
+      return sendJSON(res, 200, await searchCompanies(q));
+    }
     if (url.pathname === '/api/health') return sendJSON(res, 200, { ok: true, source: 'yahoo' });
     if (url.pathname === '/api/chart') {
       const symbol = (url.searchParams.get('symbol') || '').toUpperCase();
