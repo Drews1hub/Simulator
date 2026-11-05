@@ -98,7 +98,17 @@ dialog h2 { margin: 0 0 4px; }
 @keyframes tin { from { transform: translateY(10px); opacity: 0; } }
 
 @media (max-width: 1000px) {
+  /* chart + ticket side by side; watchlist and tables below */
+  .layout { grid-template-columns: 1fr 280px; grid-template-rows: minmax(460px, calc(100vh - 150px)) auto auto; }
+  .watchlist { grid-column: 1 / -1; max-height: 260px; order: 3; }
+  .bottom { order: 4; }
+}
+@media (max-width: 700px) {
   .layout { grid-template-columns: 1fr; grid-template-rows: auto; }
+  .chart-panel { min-height: 340px; order: 1; }
+  .ticket { order: 2; min-height: 520px; }
+  .watchlist { order: 3; } .bottom { order: 4; }
+}
   .chart-panel { min-height: 360px; }
   .watchlist { max-height: 300px; }
 }
@@ -113,3 +123,9 @@ dialog h2 { margin: 0 0 4px; }
 #keyDlg { width: 460px; } #keyDlg a { color: var(--accent); }
 #keyDlg ol { padding-left: 18px; margin: 0; } code { background: var(--panel2); padding: 1px 4px; border-radius: 3px; }
 .ticket { overflow-y: auto; } .ticket form { flex-shrink: 0; }
+
+/* Keep the Buy/Sell button always reachable, even in short windows */
+.layout { grid-template-rows: minmax(460px, calc(100vh - 150px)) auto; }
+.ticket { min-height: 0; }
+.ticket form { overflow-y: auto; min-height: 0; flex: 1; }
+#btnSubmit { position: sticky; bottom: 0; z-index: 2; box-shadow: 0 -8px 12px var(--panel); }
