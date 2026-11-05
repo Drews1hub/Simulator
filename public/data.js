@@ -41,6 +41,8 @@ class FinnhubSource {
     this.last = {};      // sym -> { price, t }
     this.bars = {};      // sym -> 1-minute bars built from trades
     this.subs = new Set();
+    this.loadBars();
+    window.addEventListener('pagehide', () => this.saveBars(true));
     this.queue = [];     // REST calls, throttled to stay under 60/min
     this.pumping = false;
     this.connect();
@@ -66,6 +68,34 @@ class FinnhubSource {
     this.ws.onclose = () => setTimeout(() => this.connect(), 5000);
   }
 
+  // Bars are remembered in localStorage so the chart keeps history across visits.
+  loadBars() {
+    try {
+      const saved = JSON.parse(localStorage.getItem('nyse-sim-fh-bars') || '{}');
+      const cutoff = Date.now() - 3 * 86400000;
+      for (const [sym, bars] of Object.entries(saved)) this.bars[sym] = bars.filter((b) => b.t > cutoff);
+    } catch (_) { /* ignore corrupt cache */ }
+  }
+  saveBars(force = false) {
+    const write = () => {
+      this._saved = Date.now(); this._timer = null;
+      try { localStorage.setItem('nyse-sim-fh-bars', JSON.stringify(this.bars)); } catch (_) { /* quota */ }
+    };
+    if (force) { clearTimeout(this._timer); return write(); }
+    if (this._timer) return;
+    const wait = Math.max(0, 5000 - (Date.now() - (this._saved || 0)));
+    this._timer = setTimeout(write, wait);
+  }
+
+  // Record the polled price too, so a chart exists even when no trades are printing (market closed).
+  seed(sym, price) {
+    const bars = (this.bars[sym] = this.bars[sym] || []);
+    const bt = Math.floor(Date.now() / 60000) * 60000;
+    const b = bars[bars.length - 1];
+    if (!b || (b.t < bt && b.c !== price)) this.onTrade(sym, price, Date.now(), 0);
+    else if (b.t === bt) { b.h = Math.max(b.h, price); b.l = Math.min(b.l, price); b.c = price; }
+  }
+
   onTrade(sym, price, t, v) {
     if (!(price > 0)) return;
     if (!this.last[sym] || t >= this.last[sym].t) this.last[sym] = { price, t };
@@ -73,7 +103,7 @@ class FinnhubSource {
     const bt = Math.floor(t / 60000) * 60000;
     const b = bars[bars.length - 1];
     if (b && b.t === bt) { b.h = Math.max(b.h, price); b.l = Math.min(b.l, price); b.c = price; b.v += v; }
-    else if (!b || bt > b.t) { bars.push({ t: bt, o: price, h: price, l: price, c: price, v }); if (bars.length > 1500) bars.shift(); }
+    else if (!b || bt > b.t) { bars.push({ t: bt, o: price, h: price, l: price, c: price, v }); if (bars.length > 1500) bars.shift(); this.saveBars(); }
   }
 
   subscribe(sym) {
@@ -141,7 +171,8 @@ class FinnhubSource {
     symbols.filter((s) => !this.base[s] || (!this.base[s].loading && Date.now() - (this.base[s].at || 0) > 120000))
       .forEach((s) => this.refreshBase(s).catch(() => {}));
     const out = {};
-    for (const s of symbols) { const q = this.toQuote(s); if (q) out[s] = q; }
+    for (const s of symbols) { const q = this.toQuote(s); if (q) { out[s] = q; if (!q.error) this.seed(s, q.price); } }
+    this.saveBars();
     return out;
   }
 

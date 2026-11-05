@@ -121,8 +121,8 @@ async function loadChart() {
 
 function mergeLiveCandle(q) {
   const c = chartData.candles;
+  if (!src.supportsHistory) { loadChart(); return; } // Finnhub: bars are rebuilt from live prices
   if (!c.length || !(q.price > 0)) return;
-  if (!src.supportsHistory) { loadChart(); return; } // Finnhub: bars are rebuilt from trades
   const last = c[c.length - 1];
   last.c = q.price; last.h = Math.max(last.h, q.price); last.l = Math.min(last.l, q.price);
   drawChart();
@@ -349,7 +349,7 @@ function drawChart() {
   const candles = d.candles;
   if (!candles.length) {
     g.fillStyle = '#7d8a99'; g.font = '13px ui-sans-serif, system-ui';
-    g.fillText(src && !src.supportsHistory ? 'Building chart from live trades… (Finnhub mode has no history; bars appear as trades print)' : 'No intraday data yet', 20, 30);
+    g.fillText(src && !src.supportsHistory ? 'Chart builds from live prices as you keep this page open (free Finnhub data has no history).' : 'No intraday data yet', 20, 30);
     return;
   }
   const padR = 64, padB = 22, volH = 60;
