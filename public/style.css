@@ -127,10 +127,9 @@ dialog h2 { margin: 0 0 4px; }
 .ticket form { overflow-y: auto; min-height: 0; flex: 1; }
 #btnSubmit { position: sticky; bottom: 0; z-index: 2; box-shadow: 0 -8px 12px var(--panel); }
 
-/* Watchlist: full-height sidebar down the left edge */
-.watchlist { grid-row: 1 / 3; grid-column: 1; max-height: none; overflow-y: auto; }
-.bottom { grid-column: 2 / -1; }
+/* Watchlist: fills its row, ending level with the chart / ticket (above the Positions panel) */
+.watchlist { grid-row: 1; grid-column: 1; max-height: none; overflow-y: auto; align-self: stretch; }
+.bottom { grid-column: 1 / -1; }
 @media (max-width: 700px) {
   .watchlist { grid-row: auto; grid-column: auto; max-height: 300px; }
-  .bottom { grid-column: auto; }
 }
