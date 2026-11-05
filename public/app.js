@@ -516,6 +516,34 @@ async function addSymbol(raw) {
   }
 }
 
+// ---- hover a ticker for a moment to see the company name ----
+// Delegated on the table so it survives the watchlist re-rendering on every price update.
+const tip = document.createElement('div');
+tip.className = 'tip hidden';
+document.body.appendChild(tip);
+let tipTimer = null, tipSym = null;
+function hideTip() { clearTimeout(tipTimer); tipTimer = null; tipSym = null; tip.classList.add('hidden'); }
+function showTip(sym, x, y) {
+  const q = quotes[sym];
+  if (!q || !q.name || q.name === sym) return; // nothing useful to show yet
+  tip.innerHTML = `<b>${esc(q.name)}</b>${q.exchangeName ? `<span>${esc(q.exchangeName)}</span>` : ''}`;
+  tip.classList.remove('hidden');
+  const w = tip.offsetWidth, h = tip.offsetHeight;
+  tip.style.left = Math.max(8, Math.min(x + 14, innerWidth - w - 8)) + 'px';
+  tip.style.top = Math.max(8, Math.min(y + 20, innerHeight - h - 8)) + 'px';
+}
+$('watchTable').addEventListener('mousemove', (e) => {
+  const sym = e.target.closest('.sym')?.textContent;
+  if (!sym) return hideTip();
+  if (sym === tipSym) return;          // already waiting / showing for this ticker
+  hideTip(); tipSym = sym;
+  const { clientX, clientY } = e;
+  tipTimer = setTimeout(() => showTip(sym, clientX, clientY), 700);
+});
+$('watchTable').addEventListener('mouseleave', hideTip);
+$('watchTable').addEventListener('click', hideTip);
+window.addEventListener('scroll', hideTip, true);
+
 // ---- company / ticker search with suggestions ----
 let suggestions = [], suggestQuery = '', suggestSeq = 0, suggestTimer = null, suggestIdx = -1;
 function hideSuggest() { suggestions = []; suggestIdx = -1; $('suggest').classList.add('hidden'); $('suggest').innerHTML = ''; }
