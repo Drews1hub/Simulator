@@ -98,10 +98,7 @@ dialog h2 { margin: 0 0 4px; }
 @keyframes tin { from { transform: translateY(10px); opacity: 0; } }
 
 @media (max-width: 1000px) {
-  /* chart + ticket side by side; watchlist and tables below */
-  .layout { grid-template-columns: 1fr 280px; grid-template-rows: minmax(460px, calc(100vh - 150px)) auto auto; }
-  .watchlist { grid-column: 1 / -1; max-height: 260px; order: 3; }
-  .bottom { order: 4; }
+  .layout { grid-template-columns: 200px 1fr 250px; }
 }
 @media (max-width: 700px) {
   .layout { grid-template-columns: 1fr; grid-template-rows: auto; }
@@ -129,3 +126,11 @@ dialog h2 { margin: 0 0 4px; }
 .ticket { min-height: 0; }
 .ticket form { overflow-y: auto; min-height: 0; flex: 1; }
 #btnSubmit { position: sticky; bottom: 0; z-index: 2; box-shadow: 0 -8px 12px var(--panel); }
+
+/* Watchlist: full-height sidebar down the left edge */
+.watchlist { grid-row: 1 / 3; grid-column: 1; max-height: none; overflow-y: auto; }
+.bottom { grid-column: 2 / -1; }
+@media (max-width: 700px) {
+  .watchlist { grid-row: auto; grid-column: auto; max-height: 300px; }
+  .bottom { grid-column: auto; }
+}
