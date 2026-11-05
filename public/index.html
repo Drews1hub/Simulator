@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NYSE Day Trader Simulator</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">NYSE <span>Day Trader Sim</span></div>
+    <div id="marketStatus" class="status-pill">—</div>
+    <div class="metrics">
+      <div><label>Equity</label><b id="mEquity">—</b></div>
+      <div><label>Day P&amp;L</label><b id="mDayPnl">—</b></div>
+      <div><label>Unrealized</label><b id="mUnreal">—</b></div>
+      <div><label>Realized</label><b id="mReal">—</b></div>
+      <div><label>Buying Power</label><b id="mBP">—</b></div>
+      <div><label>Cash</label><b id="mCash">—</b></div>
+    </div>
+    <div class="top-actions">
+      <span id="lastUpdate" class="muted">connecting…</span>
+      <button id="btnFlatten" class="btn danger" title="Close all positions at market (F)">Flatten All</button>
+      <button id="btnSettings" class="btn">⚙</button>
+    </div>
+  </header>
+
+  <div id="banner" class="banner hidden"></div>
+
+  <main class="layout">
+    <section class="panel watchlist">
+      <div class="panel-head">
+        <h2>Watchlist</h2>
+        <form id="addForm" class="add-form">
+          <input id="addSymbol" placeholder="Add NYSE symbol" maxlength="10" autocomplete="off">
+          <button class="btn small">+</button>
+        </form>
+      </div>
+      <table class="tbl" id="watchTable">
+        <thead><tr><th>Sym</th><th class="r">Last</th><th class="r">Chg%</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </section>
+
+    <section class="panel chart-panel">
+      <div class="panel-head">
+        <div>
+          <h2 id="chartTitle">—</h2>
+          <div id="chartSub" class="muted"></div>
+        </div>
+        <div class="seg" id="rangeSeg">
+          <button data-r="1d" data-i="1m" class="on">1D · 1m</button>
+          <button data-r="1d" data-i="5m">1D · 5m</button>
+          <button data-r="5d" data-i="15m">5D · 15m</button>
+          <button data-r="1mo" data-i="60m">1M · 1h</button>
+        </div>
+      </div>
+      <div class="chart-wrap"><canvas id="chart"></canvas><div id="chartTip" class="chart-tip hidden"></div></div>
+    </section>
+
+    <section class="panel ticket">
+      <div class="panel-head"><h2>Order Ticket</h2></div>
+      <form id="orderForm">
+        <div class="field"><label>Symbol</label><input id="oSymbol" maxlength="10" autocomplete="off"></div>
+        <div class="quote-box" id="oQuote">—</div>
+        <div class="seg full" id="sideSeg">
+          <button type="button" data-side="buy" class="on buy">Buy / Cover</button>
+          <button type="button" data-side="sell" class="sell">Sell / Short</button>
+        </div>
+        <div class="field"><label>Type</label>
+          <select id="oType">
+            <option value="market">Market</option>
+            <option value="limit">Limit</option>
+            <option value="stop">Stop</option>
+          </select>
+        </div>
+        <div class="field hidden" id="priceField"><label id="priceLabel">Limit Price</label><input id="oPrice" type="number" step="0.01" min="0"></div>
+        <div class="field"><label>Shares</label><input id="oQty" type="number" min="1" step="1" value="100"></div>
+        <div class="quick">
+          <button type="button" data-q="10">10</button><button type="button" data-q="50">50</button>
+          <button type="button" data-q="100">100</button><button type="button" data-q="500">500</button>
+          <button type="button" data-q="max">Max</button>
+        </div>
+        <div class="est" id="oEst">—</div>
+        <button id="btnSubmit" class="btn submit buy">Place Order</button>
+        <p class="hint">Hotkeys: <kbd>B</kbd> buy mkt · <kbd>S</kbd> sell mkt · <kbd>X</kbd> close position · <kbd>F</kbd> flatten all</p>
+      </form>
+    </section>
+
+    <section class="panel bottom">
+      <div class="tabs" id="tabs">
+        <button data-tab="positions" class="on">Positions</button>
+        <button data-tab="orders">Open Orders</button>
+        <button data-tab="fills">Trade Log</button>
+        <button data-tab="stats">Stats</button>
+      </div>
+      <div class="tab-body" id="tabBody"></div>
+    </section>
+  </main>
+
+  <dialog id="settingsDlg">
+    <form method="dialog" id="settingsForm">
+      <h2>Settings</h2>
+      <div class="field"><label>Starting cash ($)</label><input id="sCash" type="number" min="1000" step="1000"></div>
+      <div class="field"><label>Intraday leverage</label>
+        <select id="sLev"><option value="1">1× (cash)</option><option value="2">2× (Reg-T overnight)</option><option value="4">4× (pattern day trader)</option></select>
+      </div>
+      <div class="field"><label>Commission per share ($)</label><input id="sComm" type="number" min="0" step="0.001"></div>
+      <div class="field"><label>Minimum commission ($)</label><input id="sMinComm" type="number" min="0" step="0.5"></div>
+      <div class="field"><label>Slippage (bps)</label><input id="sSlip" type="number" min="0" step="1"></div>
+      <label class="check"><input id="sOutside" type="checkbox"> Allow trading outside regular hours (fills at latest extended-hours / last price)</label>
+      <p class="muted">Changing starting cash, leverage or fees resets the account.</p>
+      <div class="dlg-actions">
+        <button value="cancel" class="btn">Cancel</button>
+        <button value="reset" id="btnReset" class="btn danger">Save &amp; Reset Account</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div id="toasts"></div>
+
+  <script src="engine.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
