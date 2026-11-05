@@ -24,7 +24,7 @@ function load() {
   return { acct: Engine.createAccount(), watch: DEFAULT_WATCH.slice(), selected: 'JPM', allowOutside: true, dayStart: null };
 }
 function migrate(s) {
-  return { autoFlatten: false, sound: true, equityHist: [], finnhubKey: '', lastAutoFlatten: '', ...s };
+  return { autoFlatten: false, sound: true, equityHist: [], finnhubKey: '', lastAutoFlatten: '', seenGuide: false, ...s };
 }
 function save() { localStorage.setItem(STORE_KEY, JSON.stringify(store)); }
 
@@ -697,6 +697,17 @@ $('settingsDlg').addEventListener('close', () => {
   }
   save(); renderAll(); drawChart();
 });
+
+// first-visit pointer to the guide (shown once)
+function showGuideNotice() {
+  const n = $('guideNotice');
+  if (store.seenGuide) return;
+  n.classList.remove('hidden');
+  const done = () => { store.seenGuide = true; save(); n.classList.add('hidden'); };
+  $('guideDismiss').addEventListener('click', done);
+  $('guideOpen').addEventListener('click', () => { store.seenGuide = true; save(); }); // follows the link
+}
+showGuideNotice();
 
 // ---------- boot ----------
 // Prefer the bundled server (full history). On static hosting (e.g. GitHub

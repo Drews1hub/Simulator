@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>How to use the Day Trader Simulator</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <meta name="theme-color" content="#0b0f14">
+  <link rel="stylesheet" href="guide.css">
+</head>
+<body>
+  <div class="top">
+    <span class="brand">NYSE <span>Day Trader Sim</span> · Guide</span>
+    <a class="btn" href="./">← Back to the simulator</a>
+  </div>
+
+  <div class="wrap">
+    <nav class="toc" aria-label="Contents">
+      <h2>On this page</h2>
+      <ol>
+        <li><a href="#what">What this is</a></li>
+        <li><a href="#start">Get started</a></li>
+        <li><a href="#first-trade">Your first trade</a></li>
+        <li><a href="#tour">A tour of the screen</a></li>
+        <li class="sub"><a href="#topbar">The top bar</a></li>
+        <li class="sub"><a href="#watchlist">The watchlist</a></li>
+        <li class="sub"><a href="#chart">The chart</a></li>
+        <li class="sub"><a href="#ticket">The order ticket</a></li>
+        <li class="sub"><a href="#tabs">The tabs at the bottom</a></li>
+        <li><a href="#order-types">Types of order</a></li>
+        <li><a href="#bracket">Protecting a trade</a></li>
+        <li><a href="#settings">Settings</a></li>
+        <li><a href="#keys">Keyboard shortcuts</a></li>
+        <li><a href="#words">Word list</a></li>
+        <li><a href="#help">If something looks wrong</a></li>
+        <li><a href="#good">Good to know</a></li>
+      </ol>
+    </nav>
+
+    <main>
+      <h1>How to use the Day Trader Simulator</h1>
+      <p class="lead">A step-by-step guide. You don't need to know anything about the stock market to follow it.</p>
+
+      <!-- ============ 1 ============ -->
+      <h2 id="what"><span class="num">1</span>What this is</h2>
+      <p>This is a <strong>practice game for trading stocks</strong>. You get <strong>$100,000 of pretend money</strong> and you use it to buy and sell real stocks at their real, current prices.</p>
+      <p>Nothing here is real money. You can't lose anything, and you don't need a bank account or a broker. If you make a mess, you can reset and start again.</p>
+      <p>The goal of the game is to end the day with more money than you started with.</p>
+      <p>A few ideas you'll see again and again:</p>
+      <ul>
+        <li>A <strong>stock</strong> is a small piece of a company. One piece is called a <strong>share</strong>.</li>
+        <li>Every stock has a short code called a <strong>ticker</strong>. Coca-Cola is <code>KO</code>, JPMorgan is <code>JPM</code>, Ford is <code>F</code>.</li>
+        <li>The <strong>NYSE</strong> (New York Stock Exchange) is the place where many of these stocks are bought and sold.</li>
+        <li>You make money if you <strong>buy low and sell higher</strong>. You lose money if the price goes the other way.</li>
+      </ul>
+
+      <!-- ============ 2 ============ -->
+      <h2 id="start"><span class="num">2</span>Get started</h2>
+      <p>The simulator is a website. You open it in a normal web browser, like Chrome, Safari, Edge or Firefox. There is nothing to install.</p>
+
+      <ol class="steps">
+        <li>
+          <h3>Open the website</h3>
+          <p>Go to <a href="https://drews1hub.github.io/Simulator/">drews1hub.github.io/Simulator</a>.</p>
+        </li>
+        <li>
+          <h3>Get a free key for the price data</h3>
+          <p>The simulator needs a source of real stock prices. It uses a free service called <strong>Finnhub</strong>. To use it you need a <strong>key</strong>, which is like a free password that tells Finnhub who is asking.</p>
+          <p>When you first open the simulator, you'll see this box:</p>
+          <figure class="mid"><a href="guide/connect.png" target="_blank" rel="noopener"><img src="guide/connect.png" alt="The Connect live market data box with a field for the Finnhub API key and a green Connect button" loading="lazy"></a></figure>
+          <p>Here is how to get your key:</p>
+          <ol>
+            <li>Click the link <strong>finnhub.io/register</strong> in the box (or go to <a href="https://finnhub.io/register" target="_blank" rel="noopener">finnhub.io/register</a>).</li>
+            <li>Sign up with an <strong>email address and a password</strong>. You may be able to use a Google account instead. Confirm your email if they ask.</li>
+            <li>After you log in, you'll see a page headed <strong>API Key</strong>. Your key is the long row of dots. Click the <strong>eye icon</strong> to see it, or the <strong>copy icon</strong> to copy it.</li>
+          </ol>
+          <div class="callout tip"><b class="label">Good to know</b>
+            <p>It's free. You are <strong>never</strong> asked for a credit card, bank details or any payment. If a page asks for money, you're on the wrong page.</p>
+            <p>The same page may also show a "Webhook" section with a "Secret". That is <strong>not</strong> your key. Only use the one under <strong>API Key</strong>.</p>
+          </div>
+        </li>
+        <li>
+          <h3>Paste the key and press Connect</h3>
+          <p>Paste your key into the box in the simulator and click the green <strong>Connect</strong> button. If you see <em>"Finnhub rejected that API key"</em>, the key was copied wrong. Copy it again and make sure no spaces came along with it.</p>
+        </li>
+        <li>
+          <h3>Wait about half a minute</h3>
+          <p>The list of stocks on the left fills in with prices over the first 30 seconds or so. When the top right says <strong>Live · Finnhub</strong>, you're ready.</p>
+          <p>You only do this once. The simulator remembers your key in your browser.</p>
+        </li>
+      </ol>
+
+      <p>The first time you visit, a blue strip near the top asks if you'd like to read this guide. You can always come back to it with the <strong>? Help</strong> button in the top bar.</p>
+      <figure><a href="guide/help-notice.png" target="_blank" rel="noopener"><img src="guide/help-notice.png" alt="The top bar with a blue New here strip underneath" loading="lazy"></a>
+        <figcaption>Click "Open the guide" in the strip <b>(1)</b>, or the <b>? Help</b> button <b>(2)</b> at any time.</figcaption></figure>
+
+      <div class="callout warn"><b class="label">The stock market has opening hours</b>
+        <p>US stocks are traded <strong>Monday to Friday, 9:30am to 4:00pm New York time</strong> (called "Eastern time"). Prices move all day during these hours.</p>
+        <p>Outside these hours, prices barely change, because almost nobody is trading. The simulator still works: you can practice, and your orders use the last price. But it is much more fun during market hours.</p>
+      </div>
+
+      <!-- ============ 3 ============ -->
+      <h2 id="first-trade"><span class="num">3</span>Your first trade</h2>
+      <p>Let's buy some Coca-Cola stock and then sell it. It takes six steps. Nothing you do here costs real money.</p>
+
+      <ol class="steps">
+        <li>
+          <h3>Pick a stock</h3>
+          <p>In the <strong>Watchlist</strong> on the left, click <strong>KO</strong>. The row lights up and the chart and the order ticket switch to Coca-Cola.</p>
+          <figure class="narrow"><a href="guide/step1-pick.png" target="_blank" rel="noopener"><img src="guide/step1-pick.png" alt="The watchlist with the KO row highlighted" loading="lazy"></a></figure>
+        </li>
+        <li>
+          <h3>Look at the price</h3>
+          <p>On the right, the <strong>Order Ticket</strong> shows the stock in the <strong>Symbol</strong> box <b>(1)</b> and its price in the box below <b>(2)</b>.</p>
+          <figure class="narrow"><a href="guide/step2-price.png" target="_blank" rel="noopener"><img src="guide/step2-price.png" alt="The order ticket showing symbol KO and its current price" loading="lazy"></a></figure>
+          <p>The big number is the price of <strong>one share</strong>. The green or red number after it is how much the price has changed since yesterday's close. <strong>H</strong> and <strong>L</strong> are the highest and lowest prices so far today. <strong>Vol</strong> is how many shares have been traded. <em>Position: flat</em> means you don't own any yet.</p>
+        </li>
+        <li>
+          <h3>Choose how many shares</h3>
+          <p>Type a number in the <strong>Shares</strong> box <b>(1)</b>. Or click one of the quick buttons <b>(2)</b>: 10, 50, 100, 500, or <strong>Max</strong>, which picks the most you can afford.</p>
+          <p>The small text underneath <b>(3)</b> shows roughly what it will cost.</p>
+          <figure class="narrow"><a href="guide/step3-shares.png" target="_blank" rel="noopener"><img src="guide/step3-shares.png" alt="The Shares box, the quick buttons and the estimated cost line" loading="lazy"></a></figure>
+        </li>
+        <li>
+          <h3>Press the green Buy button</h3>
+          <p>Make sure <strong>Buy / Cover</strong> <b>(1)</b> is highlighted green and <strong>Type</strong> says <strong>Market</strong>. Then click the big green button <b>(2)</b>.</p>
+          <figure class="narrow"><a href="guide/step4-buy.png" target="_blank" rel="noopener"><img src="guide/step4-buy.png" alt="The Buy / Cover tab and the large green button showing Buy 100 KO MKT and the total" loading="lazy"></a></figure>
+          <p>The big button tells you exactly what will happen: <em>"Buy 100 KO MKT"</em> means buy 100 shares at the market price. Under it is the <strong>total cost</strong>. A message pops up at the bottom right when the trade is done.</p>
+        </li>
+        <li>
+          <h3>See what you own</h3>
+          <p>Look at the <strong>Positions</strong> tab at the bottom. Your shares are listed there <b>(1)</b>. The <strong>Close</strong> button <b>(2)</b> sells them again.</p>
+          <figure><a href="guide/step5-positions.png" target="_blank" rel="noopener"><img src="guide/step5-positions.png" alt="The Positions tab listing KO with a Close button at the end of the row" loading="lazy"></a></figure>
+          <p>You'll see the price you paid (<strong>Avg</strong>), the price now (<strong>Last</strong>), and your profit or loss so far (<strong>Unrealized</strong>). It is called "unrealized" because you haven't sold yet, so it isn't final.</p>
+        </li>
+        <li>
+          <h3>Sell it again</h3>
+          <p>Click <strong>Close</strong>. The simulator sells all your shares at the current price. A message pops up with your result:</p>
+          <figure class="narrow"><a href="guide/toast.png" target="_blank" rel="noopener"><img src="guide/toast.png" alt="A pop-up message reading Filled SELL 100 KO with the profit or loss" loading="lazy"></a></figure>
+          <p>Now the <strong>Realized</strong> number in the top bar <b>(1)</b> shows your final profit or loss. <strong>Equity</strong> <b>(2)</b> shows the total value of everything you have.</p>
+          <figure><a href="guide/step6-result.png" target="_blank" rel="noopener"><img src="guide/step6-result.png" alt="The top bar after the trade, with Realized and Equity highlighted" loading="lazy"></a></figure>
+          <div class="callout"><b class="label">Why did I lose a few dollars?</b>
+            <p>If the price didn't move, you'll usually be down a little. That's normal. Two small costs are built in, just like real trading:</p>
+            <ul>
+              <li>A <strong>fee</strong> (called a commission) of at least $1 on every buy and every sell.</li>
+              <li><strong>Slippage</strong>: you buy a tiny bit above the price you saw and sell a tiny bit below it. Real markets work this way too.</li>
+            </ul>
+          </div>
+        </li>
+      </ol>
+      <p>That's the whole game. Everything else in this guide is about doing it with more control.</p>
+
+      <!-- ============ 4 ============ -->
+      <h2 id="tour"><span class="num">4</span>A tour of the screen</h2>
+      <p>The screen has five main areas. They're numbered in the picture below.</p>
+      <figure><a href="guide/overview.png" target="_blank" rel="noopener"><img src="guide/overview.png" alt="The whole simulator screen with five areas numbered" loading="lazy"></a>
+        <figcaption>Click any picture in this guide to open it full size.</figcaption></figure>
+      <ol class="callouts">
+        <li><strong>The top bar.</strong> Your money, and the market's status.</li>
+        <li><strong>The watchlist.</strong> The stocks you're following.</li>
+        <li><strong>The chart.</strong> How the selected stock's price has moved.</li>
+        <li><strong>The order ticket.</strong> Where you buy and sell.</li>
+        <li><strong>The tabs.</strong> Your positions, waiting orders, history and score.</li>
+      </ol>
+
+      <h3 id="topbar">The top bar</h3>
+      <figure><a href="guide/topbar.png" target="_blank" rel="noopener"><img src="guide/topbar.png" alt="The top bar with eleven items numbered" loading="lazy"></a></figure>
+      <ol class="callouts">
+        <li><strong>Market status.</strong> Says <em>NYSE Open</em> during trading hours. Otherwise it says <em>Pre-Market</em> (early morning), <em>After Hours</em> (evening) or <em>Market Closed</em>.</li>
+        <li><strong>Equity.</strong> The total value of your account right now: your cash, plus the shares you own, minus anything you owe. You start with $100,000.</li>
+        <li><strong>Day P&amp;L.</strong> How much you're up or down <em>today</em>. ("P&amp;L" means profit and loss.) Green is up, red is down.</li>
+        <li><strong>Unrealized.</strong> Profit or loss on shares you <em>still own</em>. It changes every second as prices move, and it only becomes real when you sell.</li>
+        <li><strong>Realized.</strong> Profit or loss from trades you have <em>finished</em>, after fees. This is the money you've actually made or lost.</li>
+        <li><strong>Buying Power.</strong> How much more you're allowed to buy right now. It starts at $400,000, which is more than your cash. This is explained in the settings section under "leverage".</li>
+        <li><strong>Cash.</strong> The cash in your account. It goes down when you buy and up when you sell.</li>
+        <li><strong>Connection status.</strong> Shows the data source and the time of the last update, for example <em>Live · Finnhub</em>. If it turns orange or red, the price feed has a problem. Wait a moment, or reload the page.</li>
+        <li><strong>Flatten All.</strong> Panic button. It sells everything you own and cancels all waiting orders in one click.</li>
+        <li><strong>? Help.</strong> Opens this guide.</li>
+        <li><strong>⚙ Settings.</strong> Opens the settings. See <a href="#settings">Settings</a>.</li>
+      </ol>
+
+      <h3 id="watchlist">The watchlist</h3>
+      <p>This is your list of stocks to keep an eye on. It shows each stock's ticker, its latest price, and how much it has changed today. Green means up and red means down.</p>
+      <ul>
+        <li><strong>Click a stock</strong> to select it. The chart and ticket switch to that stock.</li>
+        <li>A small <span class="up">green dot</span> next to a ticker means you own shares of it. A <span class="down">red dot</span> means you have a short position (explained below).</li>
+        <li>Click the <strong>×</strong> at the end of a row to remove a stock from the list.</li>
+        <li>Prices flash green or red when they change.</li>
+      </ul>
+
+      <h3>Adding more stocks</h3>
+      <p>Type in the box at the top of the watchlist. You can type a <strong>ticker</strong> (like <code>GM</code>) or a <strong>company name</strong> (like <code>apple</code>). A list of matches appears.</p>
+      <figure class="narrow"><a href="guide/search.png" target="_blank" rel="noopener"><img src="guide/search.png" alt="The search box with the word apple typed and two suggestions below" loading="lazy"></a></figure>
+      <ol class="callouts">
+        <li>Type a name or a ticker.</li>
+        <li>Click a match, or use the up and down arrow keys and press <kbd>Enter</kbd>. The stock is added to the bottom of your list.</li>
+      </ol>
+      <p>The tag on the right of each match shows which exchange it trades on. Many famous companies, like Apple, trade on a different exchange called <strong>Nasdaq</strong> instead of the NYSE. The simulator tells you when that happens and shows an <strong>Add anyway</strong> button. Click it and you can trade that stock like any other.</p>
+      <figure class="narrow"><a href="guide/add-anyway.png" target="_blank" rel="noopener"><img src="guide/add-anyway.png" alt="A message saying AAPL trades on Nasdaq, not the NYSE, with an Add anyway button" loading="lazy"></a></figure>
+
+      <h3 id="chart">The chart</h3>
+      <p>The chart shows how the price of the selected stock has moved. Each little bar is called a <strong>candle</strong>. One candle shows what happened to the price during one short period, such as one minute.</p>
+      <figure><a href="guide/chart.png" target="_blank" rel="noopener"><img src="guide/chart.png" alt="A price chart with nine items numbered" loading="lazy"></a></figure>
+      <ol class="callouts">
+        <li><strong>Indicator buttons.</strong> Switch the extra lines on and off (explained below).</li>
+        <li><strong>Time buttons.</strong> Choose how far back to look and how long each candle is. <em>1D · 1m</em> means one day, one candle per minute.</li>
+        <li><strong>A candle.</strong> <span class="up">Green</span> means the price <em>rose</em> during that period. <span class="down">Red</span> means it <em>fell</em>. The thin line through it shows the highest and lowest price reached.</li>
+        <li><strong>Purple line (VWAP).</strong> The day's average price, giving more weight to times when lots of shares were traded. Traders use it as a "fair price" for the day.</li>
+        <li><strong>Green dashed line.</strong> Your <em>take-profit</em> price (see <a href="#bracket">Protecting a trade</a>).</li>
+        <li><strong>Blue dashed line.</strong> The average price you paid for the shares you own.</li>
+        <li><strong>Red dashed line.</strong> Your <em>stop-loss</em> price (see <a href="#bracket">Protecting a trade</a>).</li>
+        <li><strong>Grey dotted line.</strong> Yesterday's closing price. It shows whether the stock is up or down today.</li>
+        <li><strong>Latest price tag.</strong> The current price. It's green if the stock is up today and red if it's down.</li>
+      </ol>
+      <p>The bars along the bottom of the chart show <strong>volume</strong>: how many shares were traded in each period. An orange dashed line on the chart is an order that is waiting for its price (see <a href="#order-types">Types of order</a>).</p>
+      <p>The indicator lines:</p>
+      <ul>
+        <li><strong>VWAP</strong> (purple): described above.</li>
+        <li><strong>EMA 9</strong> (light blue): a smooth line that follows the average of the last 9 candles. It reacts quickly.</li>
+        <li><strong>EMA 21</strong> (pink): the same idea over the last 21 candles. It reacts more slowly. When the fast line crosses above the slow one, some traders read that as the price turning up.</li>
+      </ul>
+      <p>Move your mouse over the chart to see the exact open, high, low and close for any candle.</p>
+      <div class="callout warn"><b class="label">The chart looks emptier on the website</b>
+        <p>The free price data doesn't include history. So on the website the chart starts empty and <strong>fills in while you keep the page open</strong>, one candle per minute. It also remembers what it saw on earlier visits. The pictures in this guide show a full day, so yours will look smaller at first. The 5-day and 1-month buttons are greyed out for the same reason.</p>
+        <p>When the market is closed, nothing is trading, so the chart shows a single flat candle.</p>
+      </div>
+
+      <h3 id="ticket">The order ticket</h3>
+      <p>This is where you place trades. An <strong>order</strong> is an instruction to buy or sell.</p>
+      <figure class="narrow"><a href="guide/ticket.png" target="_blank" rel="noopener"><img src="guide/ticket.png" alt="The order ticket with eight items numbered" loading="lazy"></a></figure>
+      <ol class="callouts">
+        <li><strong>Symbol.</strong> The ticker you're trading. It matches the stock you selected. You can also type a ticker here.</li>
+        <li><strong>Price box.</strong> The price of one share, today's change, the day's high and low, the volume, and how many shares you hold.</li>
+        <li><strong>Buy / Cover</strong> or <strong>Sell / Short</strong>. <strong>Buy</strong> purchases shares. <strong>Sell</strong> sells shares you own. If you sell shares you <em>don't</em> own, that's a "short" (see below). The big button changes its words to match, for example "Buy to Cover" or "Sell Short".</li>
+        <li><strong>Type.</strong> Market, Limit or Stop. See <a href="#order-types">Types of order</a>.</li>
+        <li><strong>Shares.</strong> How many shares to trade.</li>
+        <li><strong>Quick buttons.</strong> 10, 50, 100, 500 shares, or <strong>Max</strong> for as many as you can afford.</li>
+        <li><strong>Attach bracket.</strong> Adds automatic safety orders. See <a href="#bracket">Protecting a trade</a>.</li>
+        <li><strong>The big button.</strong> Places the order. It shows what you're about to do and the <strong>total</strong> amount: shares times price.</li>
+      </ol>
+      <p>Above the button, <strong>Est. value</strong> is the same total, and <strong>commission</strong> is the fee. <strong>Buying power</strong> is how much you can still buy.</p>
+
+      <h3>Buying, selling and "shorting"</h3>
+      <ul>
+        <li><strong>Long</strong> means you bought shares and hope the price goes <em>up</em>.</li>
+        <li><strong>Short</strong> (or "selling short") is the opposite. You sell shares you don't own, hoping the price goes <em>down</em>, so you can buy them back cheaper. If the price goes <em>up</em> instead, you lose money. Shorting is a normal part of day trading, and it's included here so you can practice it.</li>
+        <li><strong>Cover</strong> means buying back shares to end a short.</li>
+      </ul>
+
+      <h3 id="tabs">The tabs at the bottom</h3>
+      <p>Four tabs sit at the bottom of the screen. Click a name to switch.</p>
+
+      <h3>Positions</h3>
+      <p>A <strong>position</strong> is a stock you currently own (or are short). This tab lists them all.</p>
+      <figure><a href="guide/tab-positions.png" target="_blank" rel="noopener"><img src="guide/tab-positions.png" alt="The Positions tab with three positions" loading="lazy"></a></figure>
+      <ol class="callouts">
+        <li><strong>Unrealized.</strong> Your profit or loss on this position so far, in dollars. The <strong>%</strong> column shows the same thing as a percentage.</li>
+        <li><strong>Side.</strong> <span class="up">LONG</span> (you own shares) or <span class="down">SHORT</span> (you sold shares you don't own).</li>
+        <li><strong>Close.</strong> Ends the position at the current price.</li>
+      </ol>
+      <p>The other columns are <strong>Qty</strong> (how many shares), <strong>Avg</strong> (the average price you paid), <strong>Last</strong> (the price now) and <strong>Mkt Value</strong> (what those shares are worth now).</p>
+
+      <h3>Open Orders</h3>
+      <p>Some orders don't happen right away. They wait until the price reaches a level you chose. This tab lists the ones still waiting.</p>
+      <figure><a href="guide/tab-orders.png" target="_blank" rel="noopener"><img src="guide/tab-orders.png" alt="The Open Orders tab with a limit order and two bracket orders" loading="lazy"></a></figure>
+      <ol class="callouts">
+        <li><strong>Type.</strong> LIMIT or STOP. The small tag <strong>SL</strong> means stop-loss and <strong>TP</strong> means take-profit. They belong to a bracket.</li>
+        <li><strong>Cancel.</strong> Removes a waiting order.</li>
+      </ol>
+
+      <h3>Trade Log</h3>
+      <p>A history of every buy and sell you have made, newest first.</p>
+      <figure><a href="guide/tab-fills.png" target="_blank" rel="noopener"><img src="guide/tab-fills.png" alt="The Trade Log tab with a list of past trades" loading="lazy"></a></figure>
+      <ol class="callouts">
+        <li><strong>Export CSV.</strong> Downloads your history as a file you can open in a spreadsheet, such as Excel or Google Sheets.</li>
+        <li><strong>Realized P&amp;L.</strong> Your profit or loss. It only appears on the trades that <em>closed</em> a position, so you'll see blanks on trades that opened one.</li>
+      </ol>
+
+      <h3>Stats</h3>
+      <p>Your scorecard.</p>
+      <figure><a href="guide/tab-stats.png" target="_blank" rel="noopener"><img src="guide/tab-stats.png" alt="The Stats tab with score tiles and an equity curve" loading="lazy"></a></figure>
+      <ul>
+        <li><strong>Total return</strong> and <strong>Net P&amp;L</strong>: how far your account is up or down since you started.</li>
+        <li><strong>Closing trades</strong>: how many trades have ended a position.</li>
+        <li><strong>Win rate</strong> <b>(1)</b>: the share of those trades that made money.</li>
+        <li><strong>Avg win</strong> and <strong>Avg loss</strong>: the average size of your good and bad trades.</li>
+        <li><strong>Profit factor</strong> <b>(2)</b>: total money won divided by total money lost. Above 1.0 means you're ahead.</li>
+        <li><strong>Commissions paid</strong>: total fees so far.</li>
+        <li><strong>Day trades</strong>: how many round trips (a buy and a sell of the same stock on the same day) you made recently. Real brokers limit accounts under $25,000 to 3 of these in 5 days. The simulator doesn't stop you, but it shows a warning in red if you pass that.</li>
+        <li><strong>Equity curve</strong> <b>(3)</b>: a line showing your account value over time. The dashed line is where you started.</li>
+      </ul>
+
+      <!-- ============ 5 ============ -->
+      <h2 id="order-types"><span class="num">5</span>Types of order</h2>
+      <p>The <strong>Type</strong> box in the order ticket has three choices.</p>
+      <table>
+        <tr><th>Type</th><th>What it does</th><th>Use it when</th></tr>
+        <tr><td><strong>Market</strong></td><td>Buys or sells <strong>right now</strong> at the current price.</td><td>You want in or out immediately.</td></tr>
+        <tr><td><strong>Limit</strong></td><td>Waits until the price is as good as the number you set. A <em>buy</em> limit only buys at your price <em>or lower</em>. A <em>sell</em> limit only sells at your price <em>or higher</em>.</td><td>You'd rather wait for a better price than pay today's.</td></tr>
+        <tr><td><strong>Stop</strong></td><td>Waits until the price reaches your number, then trades at the market price. A <em>sell</em> stop triggers when the price <em>falls</em> to your number. A <em>buy</em> stop triggers when it <em>rises</em> to it.</td><td>You want to get out if things go wrong, or jump in if the price breaks upward.</td></tr>
+      </table>
+      <p>When you choose Limit or Stop, a <strong>price box</strong> appears. It starts at the current price. Change it to the level you want.</p>
+      <figure class="narrow"><a href="guide/ticket-limit.png" target="_blank" rel="noopener"><img src="guide/ticket-limit.png" alt="The order ticket with Limit selected and a price box" loading="lazy"></a></figure>
+      <ol class="callouts">
+        <li><strong>Type</strong> set to Limit.</li>
+        <li><strong>Limit price.</strong> The price you're willing to pay. Here it is a little below the current price.</li>
+        <li><strong>Shares.</strong> The big button now reads "Buy 200 F LIMIT" with the total at your price.</li>
+      </ol>
+      <p>Orders that haven't happened yet appear under <strong>Open Orders</strong>, and as orange dashed lines on the chart. You can cancel them any time.</p>
+      <p>Orders can wait only while the page is open. The simulator checks them every few seconds against the live price.</p>
+
+      <!-- ============ 6 ============ -->
+      <h2 id="bracket"><span class="num">6</span>Protecting a trade</h2>
+      <p>Prices can move fast. A <strong>bracket</strong> is a pair of automatic orders that protect a trade. You set them at the moment you buy.</p>
+      <ul>
+        <li><strong>Stop-loss</strong>: a price <em>below</em> where you bought. If the price drops to it, the simulator sells automatically so you don't lose more.</li>
+        <li><strong>Take-profit</strong>: a price <em>above</em> where you bought. If the price rises to it, the simulator sells automatically and locks in your gain.</li>
+      </ul>
+      <p>Whichever happens first wins, and the other one is cancelled. If you close the position yourself, both are cancelled.</p>
+      <p>To use it, tick <strong>Attach bracket</strong> before you place the order.</p>
+      <figure class="narrow"><a href="guide/ticket-bracket.png" target="_blank" rel="noopener"><img src="guide/ticket-bracket.png" alt="The order ticket with Attach bracket ticked and stop-loss, take-profit and risk boxes filled in" loading="lazy"></a></figure>
+      <ol class="callouts">
+        <li><strong>Attach bracket</strong> ticked.</li>
+        <li><strong>Stop-loss</strong> price. It's filled in for you, and you can change it.</li>
+        <li><strong>Take-profit</strong> price. Also filled in, and you can change it.</li>
+        <li><strong>Risk %.</strong> How far from your buy price the stop-loss sits: 0.25%, 0.5%, 1% or 2%. The take-profit is set twice as far away. Change this and both boxes update.</li>
+        <li><strong>Risk and reward.</strong> The most you would lose if the stop-loss triggers, the most you would gain if the take-profit triggers, and their ratio. "R:R 1:2" means you stand to gain twice what you risk.</li>
+      </ol>
+      <p>After you place the order, the two safety orders show up in <strong>Open Orders</strong> and as a red and a green dashed line on the chart.</p>
+      <div class="callout"><b class="label">If you see an error</b>
+        <p>For a buy, the stop-loss must be <em>below</em> the price and the take-profit <em>above</em> it. For a short, it's the other way around. The simulator tells you if a number is on the wrong side.</p>
+      </div>
+
+      <!-- ============ 7 ============ -->
+      <h2 id="settings"><span class="num">7</span>Settings</h2>
+      <p>Click the <strong>⚙</strong> button in the top right.</p>
+      <figure class="mid"><a href="guide/settings.png" target="_blank" rel="noopener"><img src="guide/settings.png" alt="The Settings box" loading="lazy"></a></figure>
+      <table>
+        <tr><th>Setting</th><th>What it means</th></tr>
+        <tr><td><strong>Starting cash</strong></td><td>How much pretend money you begin with. The default is $100,000.</td></tr>
+        <tr><td><strong>Intraday leverage</strong></td><td>"Leverage" means being allowed to trade with more money than you have, as if you had borrowed it. At <strong>4×</strong> (the default) you can hold up to four times your account value in stocks during the day, so $100,000 gives $400,000 of <em>buying power</em>. Real brokers allow this only for same-day trading. <strong>1×</strong> means no borrowing. Leverage makes gains <em>and</em> losses bigger.</td></tr>
+        <tr><td><strong>Commission per share</strong></td><td>The fee charged for each share you trade. Default: half a cent ($0.005).</td></tr>
+        <tr><td><strong>Minimum commission</strong></td><td>The smallest fee for any one trade. Default: $1.</td></tr>
+        <tr><td><strong>Slippage (bps)</strong></td><td>How much worse than the shown price your order is filled. "bps" means hundredths of a percent. The default of 2 is 0.02%, and never less than one cent per share.</td></tr>
+        <tr><td><strong>Allow trading outside regular hours</strong></td><td>On by default. When the market is closed, your orders use the latest available price. Untick it to trade only from 9:30am to 4:00pm Eastern.</td></tr>
+        <tr><td><strong>Auto-flatten at 15:55 ET</strong></td><td>Off by default. When ticked, the simulator sells everything at 3:55pm Eastern (5 minutes before the close), so you never hold stocks overnight. Many day traders do this on purpose. It only works while the page is open.</td></tr>
+        <tr><td><strong>Sound on fills</strong></td><td>Plays a short beep when an order is filled.</td></tr>
+        <tr><td><strong>Finnhub API key</strong></td><td>The key you pasted earlier. Change it here if you ever get a new one.</td></tr>
+      </table>
+      <div class="callout warn"><b class="label">Resetting your account</b>
+        <p>The money settings (starting cash, leverage, commission and slippage) only take effect when you press <strong>Save &amp; Reset Account</strong>. That <strong>erases all your positions and trade history</strong> and starts again with a fresh account. You'll be asked to confirm first.</p>
+        <p>This is also how you start over if you've lost all your pretend money.</p>
+      </div>
+
+      <!-- ============ 8 ============ -->
+      <h2 id="keys"><span class="num">8</span>Keyboard shortcuts</h2>
+      <p>For fast trading. They work when you're not typing in a box, and they use the stock and share count currently in the order ticket.</p>
+      <table>
+        <tr><th>Key</th><th>What it does</th></tr>
+        <tr><td><kbd>B</kbd></td><td>Buy at the market price.</td></tr>
+        <tr><td><kbd>S</kbd></td><td>Sell at the market price.</td></tr>
+        <tr><td><kbd>X</kbd></td><td>Close your position in the selected stock.</td></tr>
+        <tr><td><kbd>F</kbd></td><td>Flatten: sell everything and cancel all waiting orders.</td></tr>
+      </table>
+
+      <!-- ============ 9 ============ -->
+      <h2 id="words"><span class="num">9</span>Word list</h2>
+      <p>Every trading word used in the simulator, in plain English.</p>
+      <dl class="words">
+        <dt>Stock / share</dt><dd>A stock is a small piece of ownership in a company. Each piece is a share.</dd>
+        <dt>Ticker</dt><dd>The short code for a stock, such as KO for Coca-Cola.</dd>
+        <dt>Exchange</dt><dd>A marketplace where stocks are traded. The NYSE and Nasdaq are the two biggest in the US.</dd>
+        <dt>Buy / sell</dt><dd>Buying gets you shares. Selling gives them up for cash.</dd>
+        <dt>Long</dt><dd>Owning shares and hoping the price goes up.</dd>
+        <dt>Short</dt><dd>Selling shares you don't own and hoping the price goes down, so you can buy them back cheaper.</dd>
+        <dt>Cover</dt><dd>Buying back shares to end a short.</dd>
+        <dt>Order</dt><dd>An instruction to buy or sell.</dd>
+        <dt>Market order</dt><dd>Trade right now at the current price.</dd>
+        <dt>Limit order</dt><dd>Trade only at your price or better.</dd>
+        <dt>Stop order</dt><dd>Wait until the price reaches your number, then trade at the market price.</dd>
+        <dt>Fill / filled</dt><dd>When an order actually happens, it has been "filled".</dd>
+        <dt>Position</dt><dd>A stock you currently hold (or are short).</dd>
+        <dt>Flat</dt><dd>Holding no shares of a stock.</dd>
+        <dt>Close a position</dt><dd>Sell what you own (or buy back what you shorted) to end the trade.</dd>
+        <dt>Flatten</dt><dd>Close every position at once.</dd>
+        <dt>Profit and loss (P&amp;L)</dt><dd>How much you've gained or lost.</dd>
+        <dt>Unrealized</dt><dd>Profit or loss on shares you still hold. Not final until you sell.</dd>
+        <dt>Realized</dt><dd>Profit or loss from trades you have finished.</dd>
+        <dt>Equity</dt><dd>The total value of your account: cash plus the value of your shares, minus anything you owe.</dd>
+        <dt>Buying power</dt><dd>How much more you're allowed to buy right now.</dd>
+        <dt>Leverage</dt><dd>Trading with more money than you actually have, as if borrowed. It multiplies both gains and losses.</dd>
+        <dt>Commission</dt><dd>A fee a broker charges for each trade.</dd>
+        <dt>Slippage</dt><dd>The small difference between the price you see and the price you actually get.</dd>
+        <dt>Bracket</dt><dd>A stop-loss and a take-profit attached to a trade.</dd>
+        <dt>Stop-loss</dt><dd>An automatic sell if the price falls to your number, to limit your loss.</dd>
+        <dt>Take-profit</dt><dd>An automatic sell if the price rises to your number, to lock in a gain.</dd>
+        <dt>Risk / reward (R:R)</dt><dd>How much you could lose compared with how much you could gain on a trade.</dd>
+        <dt>Candle</dt><dd>One bar on the chart. It shows how the price moved during one short period.</dd>
+        <dt>Volume</dt><dd>How many shares were traded.</dd>
+        <dt>VWAP</dt><dd>The day's average price, counting busy moments more. A "fair price" for the day.</dd>
+        <dt>EMA</dt><dd>A smooth line following the recent average price. EMA 9 uses the last 9 candles and EMA 21 uses the last 21.</dd>
+        <dt>Previous close</dt><dd>The price at the end of the last trading day.</dd>
+        <dt>Watchlist</dt><dd>Your list of stocks to follow.</dd>
+        <dt>Day trade</dt><dd>Buying and selling the same stock on the same day.</dd>
+        <dt>Pre-market / after hours</dt><dd>Quieter trading before 9:30am and after 4:00pm Eastern.</dd>
+      </dl>
+
+      <!-- ============ 10 ============ -->
+      <h2 id="help"><span class="num">10</span>If something looks wrong</h2>
+      <div class="faq">
+        <details><summary>The chart is empty or has just one bar</summary><div>
+          On the website the free price data has no history, so the chart builds up while the page is open, one candle per minute. When the market is closed there are no new trades, so you only see one flat candle. Leave the page open during market hours (9:30am to 4:00pm Eastern, Monday to Friday) and it fills in.</div></details>
+        <details><summary>The prices aren't moving</summary><div>
+          Check the market status at the top left. If it says <em>Market Closed</em>, prices stay put until the next trading day opens. Weekends and US holidays are closed too. If it says <em>NYSE Open</em> and the numbers are still frozen, reload the page.</div></details>
+        <details><summary>"Finnhub rejected that API key"</summary><div>
+          The key was copied incorrectly, or it's the wrong one. Go back to your Finnhub page and copy the long key under <strong>API Key</strong> (not the Webhook "Secret"). Paste it again with no spaces before or after.</div></details>
+        <details><summary>I can't add a stock</summary><div>
+          Read the message under the search box. It will say one of these:
+          <ul>
+            <li><em>"no such stock found"</em>: check the ticker, or search by company name instead.</li>
+            <li><em>"trades on … not the NYSE"</em>: the stock is on another exchange. Click <strong>Add anyway</strong>.</li>
+            <li><em>"timed out"</em>: the price service is busy. Wait a few seconds and try again.</li>
+          </ul>
+          Only US-listed stocks are supported. Foreign listings aren't.</div></details>
+        <details><summary>The Buy button is grey or nothing happens</summary><div>
+          The button is grey while it has no price for that stock yet. Wait a few seconds. If you unticked "Allow trading outside regular hours" in Settings, you can only trade while the market is open. A red message at the bottom right says what went wrong. A common one is <em>"Insufficient buying power"</em>: you're trying to buy more than you can afford. Lower the number of shares or press <strong>Max</strong>.</div></details>
+        <details><summary>The "Connect live market data" box keeps appearing</summary><div>
+          Your browser may be set to clear its saved data when you close it, or you're in a private window. The simulator saves your key and your account in the browser, so those settings will make it forget you.</div></details>
+        <details><summary>My trades and money disappeared</summary><div>
+          Everything is stored in your own browser, on this device only. It is lost if you clear your browser data, use a private window, or switch to a different browser or computer. There is no account to log in to.</div></details>
+        <details><summary>How do I start over?</summary><div>
+          Click <strong>⚙</strong> then <strong>Save &amp; Reset Account</strong>. You can set a new amount of starting cash at the same time.</div></details>
+      </div>
+
+      <!-- ============ 11 ============ -->
+      <h2 id="good"><span class="num">11</span>Good to know</h2>
+      <ul>
+        <li><strong>It's all pretend.</strong> No real money is ever used, and no real orders are sent to any broker.</li>
+        <li><strong>The prices are real</strong>, but they come from a free data service, so they may differ by a few cents from other sources. They're good for practice, not for real trading decisions.</li>
+        <li><strong>Real trading is harder.</strong> The simulator is simpler than a real broker. Real orders can take longer to fill, and prices can jump past your stop. Don't assume your results here will repeat with real money.</li>
+        <li><strong>This isn't financial advice.</strong> It's an educational game.</li>
+        <li><strong>Privacy.</strong> Your key, your account and your trade history stay in your own browser. Only the ticker symbols you look at are sent to Finnhub to get prices.</li>
+      </ul>
+
+      <div class="cta">
+        <p style="margin-top:0">Ready to try it?</p>
+        <a class="btn primary" href="./">Open the simulator</a>
+      </div>
+      <footer>Day Trader Simulator guide</footer>
+    </main>
+  </div>
+</body>
+</html>

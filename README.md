@@ -4,6 +4,8 @@ A paper-trading simulator that runs on **live NYSE market data**. It starts you 
 
 ![features](https://img.shields.io/badge/deps-zero-brightgreen)
 
+**New to trading?** Read the plain-language [How to use guide](public/guide.html) (live at https://drews1hub.github.io/Simulator/guide.html). It also opens from the **? Help** button in the app.
+
 ## Two ways to run it
 
 ### 1. Locally with the data server (full chart history)

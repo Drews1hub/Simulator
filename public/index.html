@@ -25,18 +25,24 @@
     <div class="top-actions">
       <span id="lastUpdate" class="muted">connecting…</span>
       <button id="btnFlatten" class="btn danger" title="Close all positions at market (F)">Flatten All</button>
+      <a id="btnHelp" class="btn" href="guide.html" title="How to use this simulator">? Help</a>
       <button id="btnSettings" class="btn">⚙</button>
     </div>
   </header>
 
   <div id="banner" class="banner hidden"></div>
+  <div id="guideNotice" class="guide-notice hidden">
+    <span>👋 New here? Read the short guide to learn how everything works.</span>
+    <a class="btn small" href="guide.html" id="guideOpen">Open the guide</a>
+    <button class="btn small" id="guideDismiss" type="button">Got it</button>
+  </div>
 
   <main class="layout">
     <section class="panel watchlist">
       <div class="panel-head">
         <h2>Watchlist</h2>
         <form id="addForm" class="add-form">
-          <input id="addSymbol" placeholder="Ticker or company, e.g. GM or Apple" maxlength="10" autocomplete="off" autocapitalize="characters">
+          <input id="addSymbol" placeholder="Ticker or name" maxlength="10" autocomplete="off" autocapitalize="characters">
           <button class="btn small" title="Add to watchlist">Add</button>
         </form>
       </div>
@@ -149,7 +155,7 @@
       </ol>
       <div class="field"><label>Finnhub API key</label><input id="keyInput" required autocomplete="off" spellcheck="false"></div>
       <div id="keyErr" class="down"></div>
-      <p class="muted">The key is stored only in this browser (localStorage) and sent only to finnhub.io. For full intraday chart history, run the app locally with <code>npm start</code> instead.</p>
+      <p class="muted">The key is stored only in this browser (localStorage) and sent only to finnhub.io.</p>
       <div class="dlg-actions"><button class="btn submit buy">Connect</button></div>
     </form>
   </dialog>
