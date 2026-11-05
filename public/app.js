@@ -472,17 +472,44 @@ function closePosition(s) {
   submit({ symbol: s, side: p.qty > 0 ? 'sell' : 'buy', qty: Math.abs(p.qty), type: 'market' });
 }
 
+function addStatus(html, kind = '') {
+  const el = $('addStatus');
+  el.className = 'add-status ' + kind;
+  el.innerHTML = html;
+  el.classList.toggle('hidden', !html);
+}
+
+function addToWatch(s, q) {
+  quotes[s] = q;
+  if (!store.watch.includes(s)) store.watch.push(s);
+  save();
+  addStatus(`Added ${s}.`, 'up');
+  setTimeout(() => { if ($('addStatus').textContent === `Added ${s}.`) addStatus(''); }, 3000);
+  selectSymbol(s);
+}
+
+let pendingAdd = null; // non-NYSE symbol awaiting "Add anyway"
 async function addSymbol(raw) {
-  const s = raw.trim().toUpperCase();
+  const s = raw.trim().toUpperCase().replace(/^\$/, '');
   if (!s) return;
-  if (store.watch.includes(s)) return selectSymbol(s);
+  if (!/^[A-Z][A-Z0-9.\-]{0,9}$/.test(s)) return addStatus(`"${esc(raw.trim())}" isn't a valid ticker symbol.`, 'down');
+  if (store.watch.includes(s)) { addStatus(''); return selectSymbol(s); }
+  if (!src) return addStatus('Still connecting to market data. Try again in a moment.', 'down');
+  addStatus(`Looking up ${s}…`);
   try {
-    const d = await src.lookup(s);
-    if (!d.isNYSE) return toast(`${s} trades on ${d.exchangeName || d.exchange}, not the NYSE.`, 'err');
-    const { candles, ...q } = d; quotes[s] = q;
-    store.watch.push(s); save();
-    selectSymbol(s);
-  } catch (e) { toast(`${s}: ${e.message}`, 'err'); }
+    const d = await Promise.race([
+      src.lookup(s),
+      new Promise((_, rej) => setTimeout(() => rej(new Error('lookup timed out, the data provider is busy. Try again.')), 20000)),
+    ]);
+    const { candles, ...q } = d;
+    if (d.isNYSE) return addToWatch(s, q);
+    pendingAdd = { s, q };
+    const where = d.exchangeName || d.exchange;
+    addStatus(`${s}${d.name && d.name !== s ? ' (' + esc(d.name) + ')' : ''} ${where ? 'trades on ' + esc(where) : 'has no exchange listed'}, not the NYSE. <button class="btn small" id="addAnyway">Add anyway</button>`, 'warn');
+    $('addAnyway').onclick = () => { if (pendingAdd) addToWatch(pendingAdd.s, pendingAdd.q); pendingAdd = null; };
+  } catch (e) {
+    addStatus(`Couldn't add ${s}: ${esc(/unknown|no data/i.test(e.message) ? 'no such stock found.' : e.message)}`, 'down');
+  }
 }
 
 $('addForm').addEventListener('submit', (e) => { e.preventDefault(); addSymbol($('addSymbol').value); $('addSymbol').value = ''; });

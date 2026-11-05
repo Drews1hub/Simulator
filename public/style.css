@@ -45,8 +45,11 @@ body { margin: 0; background: var(--bg); color: var(--text); font-size: 13px; }
 @keyframes fu { from { background: rgba(34,197,94,.35); } }
 @keyframes fd { from { background: rgba(239,68,68,.35); } }
 
-.add-form { display: flex; gap: 4px; }
-.add-form input { width: 120px; }
+.watchlist .panel-head { flex-wrap: wrap; }
+.add-form { display: flex; gap: 4px; flex: 1 1 140px; min-width: 0; }
+.add-form input { flex: 1; min-width: 0; width: auto; }
+.add-status { padding: 8px 12px; font-size: 12px; border-bottom: 1px solid var(--line); background: var(--panel2); line-height: 1.5; }
+.add-status .btn { margin-left: 4px; }
 input, select { background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 5px; padding: 6px 8px; font: inherit; width: 100%; }
 input:focus, select:focus { outline: 1px solid var(--accent); }
 

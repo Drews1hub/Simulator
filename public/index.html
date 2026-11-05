@@ -32,10 +32,11 @@
       <div class="panel-head">
         <h2>Watchlist</h2>
         <form id="addForm" class="add-form">
-          <input id="addSymbol" placeholder="Add NYSE symbol" maxlength="10" autocomplete="off">
-          <button class="btn small">+</button>
+          <input id="addSymbol" placeholder="Add symbol, e.g. GM" maxlength="10" autocomplete="off" autocapitalize="characters">
+          <button class="btn small" title="Add to watchlist">Add</button>
         </form>
       </div>
+      <div id="addStatus" class="add-status hidden"></div>
       <table class="tbl" id="watchTable">
         <thead><tr><th>Sym</th><th class="r">Last</th><th class="r">Chg%</th><th></th></tr></thead>
         <tbody></tbody>
