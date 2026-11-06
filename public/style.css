@@ -169,3 +169,4 @@ dialog h2 { margin: 0 0 4px; }
   #watchTable { font-size: 12px; }
   #watchTable td, #watchTable th { padding-left: 4px; padding-right: 4px; }
 }
+.profile-sel { max-width: 160px; padding-right: 6px; cursor: pointer; }

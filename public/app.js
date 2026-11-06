@@ -1,7 +1,22 @@
 /* global Engine */
 'use strict';
 
-const STORE_KEY = 'nyse-sim-v1';
+// ---------- profiles ----------
+// Several people (or practice accounts) can share one browser. Each profile has
+// its own saved state. The first profile keeps the original storage key so
+// existing data carries over untouched.
+const PROFILES_KEY = 'nyse-sim-profiles';
+function loadProfiles() {
+  try {
+    const p = JSON.parse(localStorage.getItem(PROFILES_KEY));
+    if (p && Array.isArray(p.list) && p.list.length && p.list.some((x) => x.id === p.current)) return p;
+  } catch (_) { /* fall through */ }
+  return { current: 'p1', list: [{ id: 'p1', name: 'Player 1' }] };
+}
+const profiles = loadProfiles();
+const storeKeyFor = (id) => (id === 'p1' ? 'nyse-sim-v1' : 'nyse-sim-v1:' + id);
+const STORE_KEY = storeKeyFor(profiles.current);
+function saveProfiles() { localStorage.setItem(PROFILES_KEY, JSON.stringify(profiles)); }
 const DEFAULT_WATCH = ['JPM', 'KO', 'IBM', 'DIS', 'BA', 'GE', 'XOM', 'WMT', 'V', 'BAC', 'NKE', 'F', 'CVX', 'GS', 'T'];
 const QUOTE_MS = 5000;
 const CHART_MS = 20000;
@@ -26,7 +41,7 @@ function load() {
 function migrate(s) {
   return { autoFlatten: false, sound: true, equityHist: [], finnhubKey: '', twelveKey: '', lastAutoFlatten: '', seenGuide: false, ...s };
 }
-function save() { localStorage.setItem(STORE_KEY, JSON.stringify(store)); }
+function save() { if (store) localStorage.setItem(STORE_KEY, JSON.stringify(store)); }
 
 const $ = (id) => document.getElementById(id);
 const fmt$ = (x) => (x < 0 ? '-$' : '$') + Math.abs(x).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -769,6 +784,51 @@ $('settingsDlg').addEventListener('close', () => {
   if (keysChanged && !(src instanceof DataSources.ServerSource)) { location.reload(); return; }
   renderAll(); drawChart();
 });
+
+// ---- profile switcher ----
+function renderProfiles() {
+  const sel = $('profileSel');
+  sel.innerHTML = profiles.list.map((p) => `<option value="${p.id}">${esc(p.name)}</option>`).join('') +
+    '<option disabled>──────────</option><option value="__new">＋ New profile…</option>' +
+    '<option value="__rename">Rename this profile…</option>' +
+    (profiles.list.length > 1 ? '<option value="__delete">Delete this profile…</option>' : '');
+  sel.value = profiles.current;
+}
+function switchProfile(id) {
+  save();                       // make sure the current profile is written
+  profiles.current = id; saveProfiles();
+  location.reload();            // simplest way to reset every timer, chart and data source
+}
+$('profileSel').addEventListener('change', () => {
+  const sel = $('profileSel'), v = sel.value, cur = profiles.list.find((p) => p.id === profiles.current);
+  sel.value = profiles.current; // the dropdown always shows the active profile
+  if (v === '__new') {
+    const name = (prompt('Name for the new profile (e.g. your name):', `Player ${profiles.list.length + 1}`) || '').trim();
+    if (!name) return;
+    const id = 'p' + Date.now().toString(36);
+    profiles.list.push({ id, name: name.slice(0, 24) });
+    // Fresh account, but share this browser's API keys so they don't have to be entered again.
+    localStorage.setItem(storeKeyFor(id), JSON.stringify({
+      acct: Engine.createAccount(), watch: DEFAULT_WATCH.slice(), selected: DEFAULT_WATCH[0], allowOutside: true, dayStart: null,
+      finnhubKey: store.finnhubKey || '', twelveKey: store.twelveKey || '', seenGuide: true,
+    }));
+    switchProfile(id);
+  } else if (v === '__rename') {
+    const name = (prompt('New name for this profile:', cur.name) || '').trim();
+    if (!name) return;
+    cur.name = name.slice(0, 24); saveProfiles(); renderProfiles();
+  } else if (v === '__delete') {
+    if (!confirm(`Delete the profile "${cur.name}"? Its cash, positions and trade history will be erased. This can't be undone.`)) return;
+    localStorage.removeItem(STORE_KEY);
+    profiles.list = profiles.list.filter((p) => p.id !== cur.id);
+    store = null;               // don't let switchProfile re-save the deleted profile
+    profiles.current = profiles.list[0].id; saveProfiles();
+    location.reload();
+  } else if (v && v !== profiles.current) {
+    switchProfile(v);
+  }
+});
+renderProfiles();
 
 // first-visit pointer to the guide (shown once)
 function showGuideNotice() {
