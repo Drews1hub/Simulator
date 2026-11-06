@@ -5,6 +5,7 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const { FUTURES } = require('./public/engine.js'); // futures contract table (MCL, CL, ...)
 
 const PORT = Number(process.env.PORT) || 3000;
 const PUBLIC = path.join(__dirname, 'public');
@@ -34,7 +35,9 @@ async function fetchChart(symbol, range = '1d', interval = '1m') {
     throw err;
   }
 
-  const url = `${UPSTREAM}${encodeURIComponent(symbol)}?range=${range}&interval=${interval}&includePrePost=true`;
+  const f = FUTURES[symbol];
+  const upstream = f ? f.yahoo : symbol; // e.g. MCL -> MCL=F (continuous front-month contract)
+  const url = `${UPSTREAM}${encodeURIComponent(upstream)}?range=${range}&interval=${interval}&includePrePost=true`;
   let res, body;
   try {
     res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0 (NYSE-Sim)' }, signal: AbortSignal.timeout(8000) });
@@ -58,6 +61,7 @@ async function fetchChart(symbol, range = '1d', interval = '1m') {
     throw err;
   }
   const data = normalize(result);
+  if (f) Object.assign(data, { symbol, name: f.name, isFuture: true, isNYSE: false, exchange: 'NYMEX', exchangeName: 'NYMEX (futures, delayed)' });
   cache.set(key, { at: Date.now(), data });
   return data;
 }
@@ -110,8 +114,12 @@ async function searchCompanies(q) {
     .filter((x) => x.quoteType === 'EQUITY' && x.symbol && !x.symbol.includes('=') && !x.symbol.includes('.'))
     .slice(0, 8)
     .map((x) => ({ symbol: x.symbol, name: x.longname || x.shortname || x.symbol, exchange: x.exchDisp || x.exchange || '' }));
-  searchCache.set(key, { at: Date.now(), data });
-  return data;
+  const fut = Object.entries(FUTURES)
+    .filter(([sym, f]) => sym.toLowerCase() === key || f.name.toLowerCase().includes(key) || (/^(oil|crude|wti)/.test(key) && f.unit === 'barrels'))
+    .map(([sym, f]) => ({ symbol: sym, name: f.name, exchange: 'NYMEX' }));
+  const all = fut.concat(data.filter((d) => !FUTURES[d.symbol])).slice(0, 8);
+  searchCache.set(key, { at: Date.now(), data: all });
+  return all;
 }
 
 function sendJSON(res, status, obj) {

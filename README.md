@@ -50,6 +50,17 @@ Finnhub mode differences:
 
 The NYSE regular session runs 9:30–16:00 ET. The simulator reads the exchange's trading-period data, so the market-status pill reflects open, pre-market, after-hours and closed (including holidays). By default you can also trade outside regular hours: fills then use the latest extended-hours print or the last close. Untick this in Settings to trade only during the regular session.
 
+## Oil futures (local server only)
+
+Add **MCL** (Micro WTI crude, 100 barrels) or **CL** (WTI crude, 1,000 barrels) to the watchlist, or search "oil". Prices are Yahoo's continuous front-month contract (`MCL=F` / `CL=F`), delayed about 10 minutes. The website version can't show futures because the free Finnhub data has none.
+
+- Quantity is in **contracts**. A $1 move in oil = $100 per MCL contract, $1,000 per CL contract.
+- You put up **margin** per contract (MCL $1,000, CL $10,000), not the full contract value. Only profit/loss and fees change your cash.
+- Commission is per contract ($1 MCL, $2.50 CL). The PDT day-trade count ignores futures.
+- Futures trade Sunday 6pm to Friday 5pm ET with a 5–6pm daily break, independently of stock hours.
+- Margins and fees are rough, simulator-only figures; edit the `FUTURES` table in `public/engine.js` to change them or add contracts.
+- Not simulated: contract expiry and roll. The continuous price can jump when Yahoo rolls to the next month.
+
 ## How it works
 
 ```

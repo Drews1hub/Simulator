@@ -77,6 +77,16 @@ function session() {
   return { state: 'closed', label: 'Market Closed' };
 }
 const canTrade = () => session().state === 'open' || store.allowOutside;
+// CME energy futures: Sunday 6pm to Friday 5pm ET, with a daily break 5pm-6pm ET.
+function futuresOpen() {
+  const { wd, mins } = etParts();
+  if (wd === 'Sat') return false;
+  if (wd === 'Sun') return mins >= 1080;
+  if (wd === 'Fri') return mins < 1020;
+  return mins < 1020 || mins >= 1080;
+}
+const isFut = (sym) => !!Engine.futuresSpec(sym);
+const canTradeSym = (sym) => (isFut(sym) ? futuresOpen() : canTrade());
 
 // ---------- data ----------
 function trackedSymbols() {
@@ -102,8 +112,8 @@ async function pollQuotes() {
     const stale = Object.values(data).some((q) => q.stale);
     $('lastUpdate').textContent = (stale ? 'Delayed (provider rate limit) · ' : src.label + ' · ') + new Date().toLocaleTimeString();
     $('lastUpdate').className = stale ? 'warn' : 'muted';
-    if (canTrade()) {
-      const fills = Engine.processPrices(store.acct, prices());
+    if (canTrade() || futuresOpen()) {
+      const fills = Engine.processPrices(store.acct, prices(), Date.now(), canTradeSym);
       fills.forEach(announceFill);
       autoFlattenCheck();
     }
@@ -272,7 +282,8 @@ function renderTicketQuote() {
   const pos = store.acct.positions[s];
   box.innerHTML = `<div class="big">${fmtPx(q.price)} <small class="${cls(q.change)}">${q.change >= 0 ? '+' : ''}${q.change.toFixed(2)} (${fmtPct(q.changePct)})</small></div>
     <div class="muted">H ${fmtPx(q.dayHigh)} · L ${fmtPx(q.dayLow)} · Vol ${q.volume != null ? q.volume.toLocaleString() : '—'}</div>
-    <div class="muted">Position: ${pos ? `${pos.qty} @ ${fmtPx(pos.avgPrice)}` : 'flat'}</div>`;
+    <div class="muted">Position: ${pos ? `${pos.qty}${isFut(s) ? ' contracts' : ''} @ ${fmtPx(pos.avgPrice)}` : 'flat'}</div>` +
+    (isFut(s) ? `<div class="muted">Futures · prices delayed ~10 min · <span class="${futuresOpen() ? 'up' : 'down'}">${futuresOpen() ? 'market open' : 'market closed (Sun 6pm to Fri 5pm ET)'}</span></div>` : '');
 }
 
 function renderEstimate() {
@@ -285,18 +296,27 @@ function renderEstimate() {
   let verb = side === 'buy' ? (pos && pos.qty < 0 ? 'Buy to Cover' : 'Buy') : (pos && pos.qty > 0 ? 'Sell' : 'Sell Short');
   // Total = shares × price (last price for market, the entered price for limit/stop)
   const estPx = type === 'market' ? q?.price : Number($('oPrice').value) || q?.price;
-  const total = qty > 0 && estPx > 0 ? qty * estPx : 0;
+  const f = Engine.futuresSpec(s), mult = f ? f.multiplier : 1;
+  $('oQtyLabel').textContent = f ? 'Contracts' : 'Shares';
+  // Futures: you put up margin, not the full contract value.
+  const total = qty > 0 && estPx > 0 ? (f ? qty * f.margin : qty * estPx) : 0;
   btn.innerHTML = `<span class="btn-main">${verb} ${qty > 0 ? qty : ''} ${s} ${type !== 'market' ? type.toUpperCase() : 'MKT'}</span>` +
-    (total ? `<span class="btn-total">Total ${fmt$(total)}</span>` : '');
-  btn.disabled = !canTrade() || !q || !q.price;
+    (total ? `<span class="btn-total">${f ? 'Margin' : 'Total'} ${fmt$(total)}</span>` : '');
+  btn.disabled = !canTradeSym(s) || !q || !q.price;
   if (!q || !q.price || !(qty > 0)) { $('oEst').textContent = '—'; return; }
   const px = type === 'market' ? q.price : Number($('oPrice').value) || q.price;
-  const fee = Engine.commissionFor(store.acct.settings, qty);
+  const fee = Engine.commissionFor(store.acct.settings, qty, s);
   let rr = '';
   if ($('oBracket').checked) {
     const sl = Number($('oSL').value), tp = Number($('oTP').value);
-    const risk = sl ? Math.abs(px - sl) * qty : 0, reward = tp ? Math.abs(tp - px) * qty : 0;
+    const risk = sl ? Math.abs(px - sl) * qty * mult : 0, reward = tp ? Math.abs(tp - px) * qty * mult : 0;
     rr = `<br>Risk <span class="down">${fmt$(risk)}</span> · Reward <span class="up">${fmt$(reward)}</span>${risk && reward ? ` · R:R 1:${(reward / risk).toFixed(1)}` : ''}`;
+  }
+  if (f) {
+    $('oEst').innerHTML = `${qty} × ${f.multiplier} ${f.unit} · a $1 move = ${fmt$(qty * f.multiplier)}<br>` +
+      `Contract value ${fmt$(px * qty * mult)} · margin ${fmt$(qty * f.margin)} · commission ${fmt$(fee)}<br>` +
+      `Margin available ${fmt$(Engine.buyingPower(store.acct, prices()) / store.acct.settings.leverage)}${rr}`;
+    return;
   }
   $('oEst').innerHTML = `Est. value ${fmt$(px * qty)} · commission ${fmt$(fee)}<br>Buying power ${fmt$(Engine.buyingPower(store.acct, prices()))}${rr}`;
 }
@@ -308,8 +328,8 @@ function renderTab() {
     if (!rows.length) { body.innerHTML = '<div class="empty">No open positions. Pick a stock and place an order.</div>'; return; }
     body.innerHTML = `<table class="tbl"><thead><tr><th>Symbol</th><th>Side</th><th class="r">Qty</th><th class="r">Avg</th><th class="r">Last</th><th class="r">Mkt Value</th><th class="r">Unrealized</th><th class="r">%</th><th></th></tr></thead><tbody>` +
       rows.map(([s, p]) => {
-        const last = px[s] ?? p.avgPrice, u = (last - p.avgPrice) * p.qty, pct = (u / (p.avgPrice * Math.abs(p.qty))) * 100;
-        return `<tr><td class="sym">${s}</td><td class="${p.qty > 0 ? 'up' : 'down'}">${p.qty > 0 ? 'LONG' : 'SHORT'}</td><td class="r">${Math.abs(p.qty)}</td><td class="r">${fmtPx(p.avgPrice)}</td><td class="r">${fmtPx(last)}</td><td class="r">${fmt$(Math.abs(p.qty) * last)}</td><td class="r ${cls(u)}">${fmt$(u)}</td><td class="r ${cls(u)}">${fmtPct(pct)}</td><td><button class="btn small" data-close="${s}">Close</button></td></tr>`;
+        const m = Engine.multiplier(s), last = px[s] ?? p.avgPrice, u = (last - p.avgPrice) * p.qty * m, pct = (u / (p.avgPrice * Math.abs(p.qty) * m)) * 100;
+        return `<tr><td class="sym">${s}</td><td class="${p.qty > 0 ? 'up' : 'down'}">${p.qty > 0 ? 'LONG' : 'SHORT'}</td><td class="r">${Math.abs(p.qty)}${m > 1 ? ' ct' : ''}</td><td class="r">${fmtPx(p.avgPrice)}</td><td class="r">${fmtPx(last)}</td><td class="r">${fmt$(Math.abs(p.qty) * last * m)}</td><td class="r ${cls(u)}">${fmt$(u)}</td><td class="r ${cls(u)}">${fmtPct(pct)}</td><td><button class="btn small" data-close="${s}">Close</button></td></tr>`;
       }).join('') + '</tbody></table>';
   } else if (activeTab === 'orders') {
     const rows = a.orders.filter((o) => o.status === 'open');
@@ -506,7 +526,10 @@ function selectSymbol(s) {
 }
 
 function submit(req) {
-  if (!canTrade()) return toast('Market closed. Enable outside-hours trading in Settings.', 'err');
+  if (!canTradeSym(req.symbol)) {
+    return toast(isFut(req.symbol) ? 'The futures market is closed (it trades Sunday 6pm to Friday 5pm ET, with a break 5-6pm daily).'
+      : 'Market closed. Enable outside-hours trading in Settings.', 'err');
+  }
   const q = quotes[req.symbol];
   const r = Engine.placeOrder(store.acct, req, q, prices());
   if (!r.ok) return toast(r.error, 'err');
@@ -551,7 +574,7 @@ async function addSymbol(raw) {
       new Promise((_, rej) => setTimeout(() => rej(new Error('lookup timed out, the data provider is busy. Try again.')), 20000)),
     ]);
     const { candles, ...q } = d;
-    if (d.isNYSE) return addToWatch(s, q);
+    if (d.isNYSE || d.isFuture) return addToWatch(s, q);
     pendingAdd = { s, q };
     const where = d.exchangeName || d.exchange;
     addStatus(`${s}${d.name && d.name !== s ? ' (' + esc(d.name) + ')' : ''} ${where ? 'trades on ' + esc(where) : 'has no exchange listed'}, not the NYSE. <button class="btn small" id="addAnyway">Add anyway</button>`, 'warn');
@@ -679,7 +702,10 @@ document.querySelector('.quick').addEventListener('click', (e) => {
   const q = e.target.dataset.q; if (!q) return;
   if (q === 'max') {
     const qt = quotes[$('oSymbol').value.toUpperCase()];
-    if (qt && qt.price) $('oQty').value = Math.max(1, Math.floor(Engine.buyingPower(store.acct, prices()) / (qt.price * 1.001)));
+    const sym = $('oSymbol').value.toUpperCase(), f = Engine.futuresSpec(sym);
+    const bp = Engine.buyingPower(store.acct, prices());
+    if (f) $('oQty').value = Math.max(1, Math.floor(bp / store.acct.settings.leverage / f.margin));
+    else if (qt && qt.price) $('oQty').value = Math.max(1, Math.floor(bp / (qt.price * 1.001)));
   } else $('oQty').value = q;
   renderEstimate();
 });
@@ -705,9 +731,11 @@ $('tabBody').addEventListener('click', (e) => {
   if (e.target.dataset.cancel) { Engine.cancelOrder(store.acct, Number(e.target.dataset.cancel)); save(); renderTab(); drawChart(); }
 });
 function flatten() {
-  if (!canTrade()) return toast('Market closed.', 'err');
+  if (!canTrade() && !futuresOpen()) return toast('Market closed.', 'err');
   if (!Object.keys(store.acct.positions).length) return toast('Already flat.');
-  const fills = Engine.flattenAll(store.acct, prices()).filter(Boolean);
+  // Only close what can trade right now (stocks and futures keep different hours).
+  const open = Object.fromEntries(Object.entries(prices()).filter(([s]) => canTradeSym(s)));
+  const fills = Engine.flattenAll(store.acct, open).filter(Boolean);
   const pnl = fills.reduce((t, f) => t + f.realized, 0);
   toast(`Flattened ${fills.length} position(s) · P&L ${fmt$(pnl)}`, 'ok');
   save(); renderAll(); drawChart();

@@ -257,6 +257,7 @@ class FinnhubSource {
   }
 
   async lookup(symbol) {
+    if (window.Engine && Engine.futuresSpec(symbol)) throw new Error('Futures like ' + symbol + ' only work in the local-server version (the website data has no futures prices)');
     await this.refreshBase(symbol, true);
     const q = this.toQuote(symbol);
     if (!q || q.error) throw new Error('Unknown symbol');

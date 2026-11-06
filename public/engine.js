@@ -16,6 +16,17 @@
 
   const round2 = (x) => Math.round(x * 100) / 100;
 
+  // Futures contracts. Anything not listed here is a stock (1 share = 1 unit).
+  // multiplier: barrels per contract, so a $1 move = multiplier dollars per contract.
+  // margin: deposit held per open contract (approximate, simulator-only).
+  // feePerContract: commission per contract per side.
+  const FUTURES = {
+    MCL: { name: 'Micro WTI Crude Oil (futures)', yahoo: 'MCL=F', multiplier: 100, margin: 1000, feePerContract: 1.0, unit: 'barrels' },
+    CL: { name: 'WTI Crude Oil (futures)', yahoo: 'CL=F', multiplier: 1000, margin: 10000, feePerContract: 2.5, unit: 'barrels' },
+  };
+  const futuresSpec = (sym) => (Object.prototype.hasOwnProperty.call(FUTURES, sym) ? FUTURES[sym] : null);
+  const multiplier = (sym) => (futuresSpec(sym) ? futuresSpec(sym).multiplier : 1);
+
   function createAccount(settings = {}) {
     const s = { ...DEFAULTS, ...settings };
     return {
@@ -31,7 +42,9 @@
     };
   }
 
-  function commissionFor(s, qty) {
+  function commissionFor(s, qty, sym) {
+    const f = futuresSpec(sym);
+    if (f) return round2(Math.abs(qty) * f.feePerContract);
     return round2(Math.max(s.minCommission, Math.abs(qty) * s.commissionPerShare));
   }
 
@@ -43,40 +56,65 @@
   function marketValue(acct, prices) {
     let long = 0, short = 0;
     for (const [sym, p] of Object.entries(acct.positions)) {
+      if (futuresSpec(sym)) continue; // futures aren't bought outright; see futuresOpenPnl
       const px = prices[sym] ?? p.avgPrice;
       if (p.qty > 0) long += p.qty * px; else short += -p.qty * px;
     }
     return { long, short, gross: long + short, net: long - short };
   }
 
+  // Open profit/loss on futures (they settle in cash; nothing is paid for the contract itself).
+  function futuresOpenPnl(acct, prices) {
+    let u = 0;
+    for (const [sym, p] of Object.entries(acct.positions)) {
+      const f = futuresSpec(sym);
+      if (f) u += ((prices[sym] ?? p.avgPrice) - p.avgPrice) * p.qty * f.multiplier;
+    }
+    return u;
+  }
+  function futuresMargin(acct) {
+    let m = 0;
+    for (const [sym, p] of Object.entries(acct.positions)) { const f = futuresSpec(sym); if (f) m += Math.abs(p.qty) * f.margin; }
+    return m;
+  }
+
   function equity(acct, prices) {
-    return acct.cash + marketValue(acct, prices).net;
+    return acct.cash + marketValue(acct, prices).net + futuresOpenPnl(acct, prices);
   }
 
   function unrealized(acct, prices) {
     let u = 0;
     for (const [sym, p] of Object.entries(acct.positions)) {
       const px = prices[sym] ?? p.avgPrice;
-      u += (px - p.avgPrice) * p.qty;
+      u += (px - p.avgPrice) * p.qty * multiplier(sym);
     }
     return u;
   }
 
   function buyingPower(acct, prices) {
-    return Math.max(0, equity(acct, prices) * acct.settings.leverage - marketValue(acct, prices).gross);
+    // Futures margin is set aside first; the rest supports stock positions at the chosen leverage.
+    return Math.max(0, (equity(acct, prices) - futuresMargin(acct)) * acct.settings.leverage - marketValue(acct, prices).gross);
   }
 
-  // Additional gross exposure an order would add (closing trades add none).
-  function exposureDelta(acct, sym, side, qty, price) {
+  // Error message if an order would add more exposure than the account supports, else null.
+  function capacityError(acct, sym, side, qty, price, prices) {
     const cur = acct.positions[sym] ? acct.positions[sym].qty : 0;
-    const next = cur + (side === 'buy' ? qty : -qty);
-    return (Math.abs(next) - Math.abs(cur)) * price;
+    const add = Math.abs(cur + (side === 'buy' ? qty : -qty)) - Math.abs(cur);
+    if (add <= 0) return null; // closing / reducing never needs more
+    const bp = buyingPower(acct, prices), f = futuresSpec(sym);
+    if (f) {
+      const need = add * f.margin, have = bp / acct.settings.leverage;
+      return need > have + 1e-6 ? `Insufficient margin: need $${need.toFixed(2)} (${add} x $${f.margin}), have $${have.toFixed(2)}` : null;
+    }
+    const need = add * price;
+    return need > bp + 1e-6 ? `Insufficient buying power: need $${need.toFixed(2)}, have $${bp.toFixed(2)}` : null;
   }
 
   function applyFill(acct, order, price, time) {
     const s = acct.settings;
     const signed = order.side === 'buy' ? order.qty : -order.qty;
-    const fee = commissionFor(s, order.qty);
+    const fee = commissionFor(s, order.qty, order.symbol);
+    const mult = multiplier(order.symbol), isFut = !!futuresSpec(order.symbol);
     const pos = acct.positions[order.symbol] || { qty: 0, avgPrice: 0 };
     let realized = 0;
 
@@ -88,14 +126,15 @@
     } else {
       // Reducing, closing, or flipping.
       const closing = Math.min(Math.abs(signed), Math.abs(pos.qty));
-      realized = (price - pos.avgPrice) * closing * Math.sign(pos.qty);
+      realized = (price - pos.avgPrice) * closing * Math.sign(pos.qty) * mult;
       const newQty = pos.qty + signed;
       if (newQty === 0) pos.avgPrice = 0;
       else if (Math.sign(newQty) !== Math.sign(pos.qty)) pos.avgPrice = price; // flipped
       pos.qty = newQty;
     }
 
-    acct.cash = acct.cash - signed * price - fee;
+    // Stocks: pay / receive the full price. Futures: only the profit or loss changes hands.
+    acct.cash = isFut ? acct.cash + realized - fee : acct.cash - signed * price - fee;
     acct.realized += realized;
     acct.commissions += fee;
     if (pos.qty === 0) delete acct.positions[order.symbol];
@@ -165,11 +204,8 @@
     };
 
     const refPrice = type === 'limit' ? order.limitPrice : type === 'stop' ? order.stopPrice : quote.price;
-    const need = exposureDelta(acct, symbol, order.side, qty, refPrice);
-    const bp = buyingPower(acct, prices);
-    if (need > bp + 1e-6) {
-      return { ok: false, error: `Insufficient buying power: need $${need.toFixed(2)}, have $${bp.toFixed(2)}` };
-    }
+    const capErr = capacityError(acct, symbol, order.side, qty, refPrice, prices);
+    if (capErr) return { ok: false, error: capErr };
 
     acct.orders.push(order);
     const fill = tryFill(acct, order, quote.price, time);
@@ -202,13 +238,13 @@
   }
 
   // Check every open order against fresh prices. Returns new fills.
-  function processPrices(acct, prices, time = Date.now()) {
+  // `tradable(sym)` (optional) says whether that symbol's market is open right now.
+  function processPrices(acct, prices, time = Date.now(), tradable = () => true) {
     const fills = [];
     for (const o of acct.orders) {
-      if (o.status !== 'open' || !(prices[o.symbol] > 0)) continue;
-      // Re-check buying power at fill time for exposure-increasing orders.
-      const need = exposureDelta(acct, o.symbol, o.side, o.qty, prices[o.symbol]);
-      if (need > 0 && need > buyingPower(acct, prices) + 1e-6) {
+      if (o.status !== 'open' || !(prices[o.symbol] > 0) || !tradable(o.symbol)) continue;
+      // Re-check buying power / margin at fill time for exposure-increasing orders.
+      if (capacityError(acct, o.symbol, o.side, o.qty, prices[o.symbol], prices)) {
         const triggered = o.type === 'limit'
           ? (o.side === 'buy' ? prices[o.symbol] <= o.limitPrice : prices[o.symbol] >= o.limitPrice)
           : o.type === 'stop'
@@ -247,7 +283,7 @@
   function dayTradeCount(acct, sinceMs) {
     const byDay = {};
     for (const f of acct.fills) {
-      if (f.time < sinceMs) continue;
+      if (f.time < sinceMs || futuresSpec(f.symbol)) continue; // the PDT rule doesn't apply to futures
       const day = new Date(f.time).toISOString().slice(0, 10);
       const k = day + '|' + f.symbol;
       byDay[k] = byDay[k] || { buy: false, sell: false };
@@ -259,5 +295,6 @@
   return {
     DEFAULTS, createAccount, placeOrder, processPrices, cancelOrder, flattenAll,
     equity, unrealized, buyingPower, marketValue, commissionFor, dayTradeCount,
+    FUTURES, futuresSpec, multiplier, futuresMargin,
   };
 });
