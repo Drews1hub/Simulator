@@ -39,7 +39,7 @@ function load() {
   return { acct: Engine.createAccount(), watch: DEFAULT_WATCH.slice(), selected: 'JPM', allowOutside: true, dayStart: null };
 }
 function migrate(s) {
-  return { autoFlatten: false, sound: true, equityHist: [], finnhubKey: '', twelveKey: '', lastAutoFlatten: '', seenGuide: false, ...s };
+  return { autoFlatten: false, sound: true, equityHist: [], finnhubKey: '', twelveKey: '', anthropicKey: '', lastAutoFlatten: '', seenGuide: false, ...s };
 }
 function save() { if (store) localStorage.setItem(STORE_KEY, JSON.stringify(store)); }
 
@@ -781,6 +781,7 @@ $('btnSettings').addEventListener('click', () => {
   $('sAutoFlat').checked = store.autoFlatten; $('sSound').checked = store.sound;
   $('sKey').value = store.finnhubKey || '';
   $('sTwelve').value = store.twelveKey || '';
+  $('sAnthropic').value = store.anthropicKey || '';
   $('settingsDlg').showModal();
 });
 $('settingsDlg').addEventListener('close', () => {
@@ -805,6 +806,7 @@ $('settingsDlg').addEventListener('close', () => {
       ? 'Settings saved. Starting cash only changes when you reset the account.'
       : 'Settings saved.', 'ok');
   }
+  store.anthropicKey = $('sAnthropic').value.trim();
   const key = $('sKey').value.trim(), tkey = $('sTwelve').value.trim();
   const keysChanged = key !== (store.finnhubKey || '') || tkey !== (store.twelveKey || '');
   store.finnhubKey = key; store.twelveKey = tkey;
@@ -838,7 +840,7 @@ $('profileSel').addEventListener('change', () => {
     // Fresh account, but share this browser's API keys so they don't have to be entered again.
     localStorage.setItem(storeKeyFor(id), JSON.stringify({
       acct: Engine.createAccount(), watch: DEFAULT_WATCH.slice(), selected: DEFAULT_WATCH[0], allowOutside: true, dayStart: null,
-      finnhubKey: store.finnhubKey || '', twelveKey: store.twelveKey || '', seenGuide: true,
+      finnhubKey: store.finnhubKey || '', twelveKey: store.twelveKey || '', anthropicKey: store.anthropicKey || '', seenGuide: true,
     }));
     switchProfile(id);
   } else if (v === '__rename') {

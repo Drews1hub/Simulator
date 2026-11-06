@@ -50,6 +50,14 @@ Finnhub mode differences:
 
 The NYSE regular session runs 9:30–16:00 ET. The simulator reads the exchange's trading-period data, so the market-status pill reflects open, pre-market, after-hours and closed (including holidays). By default you can also trade outside regular hours: fills then use the latest extended-hours print or the last close. Untick this in Settings to trade only during the regular session.
 
+## AI coach
+
+**💬 Ask the coach** (under the order ticket) opens a panel beside the chart. It sends Claude (`claude-opus-5-5`) a text snapshot of the screen: selected symbol, the last 90 bars with EMA/VWAP, account, positions, working orders, the order being drafted, and the last 20 fills. Then it streams the answer. Presets: check my order, explain the chart, my position, review my trades.
+
+- **Website:** paste an Anthropic API key in the coach panel or Settings. It stays in the browser and is sent only to `api.anthropic.com`.
+- **Local server:** start it with the key in the environment so it never reaches the browser, e.g. `ANTHROPIC_API_KEY=sk-ant-... npm start` (PowerShell: `$env:ANTHROPIC_API_KEY="sk-ant-..."; npm start`). The server forwards `/api/coach` only for requests from the same computer. Without the env var, the browser key is used instead.
+- Cost is shown under each answer (estimated at $4 / $20 per million input / output tokens); a typical question is a few cents.
+
 ## Oil futures (local server only)
 
 Add **MCL** (Micro WTI crude, 100 barrels) or **CL** (WTI crude, 1,000 barrels) to the watchlist, or search "oil". Prices are Yahoo's continuous front-month contract (`MCL=F` / `CL=F`), delayed about 10 minutes. The website version can't show futures because the free Finnhub data has none.

@@ -73,7 +73,23 @@
           <button data-r="1mo" data-i="60m">1M · 1h</button>
         </div>
       </div>
-      <div class="chart-wrap"><canvas id="chart"></canvas><div id="chartTip" class="chart-tip hidden"></div></div>
+      <div class="chart-body">
+        <div class="chart-wrap"><canvas id="chart"></canvas><div id="chartTip" class="chart-tip hidden"></div></div>
+        <aside id="coachPanel" class="coach hidden" aria-label="AI coach">
+          <div class="coach-head"><b>AI Coach</b><span class="muted">practice advice, not predictions</span>
+            <button type="button" class="btn small" id="coachClear" title="Clear the conversation">Clear</button>
+            <button type="button" class="x" id="coachClose" title="Close">×</button></div>
+          <div id="coachSetup" class="coach-setup hidden"></div>
+          <div id="coachPresets" class="coach-presets">
+            <button type="button" class="btn small" data-preset="order">Check my order</button>
+            <button type="button" class="btn small" data-preset="chart">Explain the chart</button>
+            <button type="button" class="btn small" data-preset="position">My position</button>
+            <button type="button" class="btn small" data-preset="review">Review my trades</button>
+          </div>
+          <div id="coachLog" class="coach-log"></div>
+          <form id="coachForm" class="coach-form"><input id="coachInput" placeholder="Ask the coach… e.g. Should I take profit?" autocomplete="off"><button class="btn" id="coachAsk">Ask</button></form>
+        </aside>
+      </div>
     </section>
 
     <section class="panel ticket">
@@ -109,6 +125,7 @@
         </div>
         <div class="est" id="oEst">—</div>
         <button id="btnSubmit" class="btn submit buy">Place Order</button>
+        <button type="button" id="btnCoach" class="btn coach-btn" title="Get advice from the AI coach on this stock, your order and your trades">💬 Ask the coach</button>
         <p class="hint">Hotkeys: <kbd>B</kbd> buy mkt · <kbd>S</kbd> sell mkt · <kbd>X</kbd> close position · <kbd>F</kbd> flatten all</p>
       </form>
     </section>
@@ -139,6 +156,7 @@
       <label class="check"><input id="sSound" type="checkbox"> Sound on fills</label>
       <div class="field"><label>Finnhub API key (only used when hosted without the server, e.g. GitHub Pages)</label><input id="sKey" autocomplete="off" spellcheck="false"></div>
       <div class="field"><label>Twelve Data API key (optional: unlocks the 5D and 1M charts on the website)</label><input id="sTwelve" autocomplete="off" spellcheck="false"></div>
+      <div class="field"><label>Anthropic API key (optional: powers the AI coach; stays in this browser)</label><input id="sAnthropic" autocomplete="off" spellcheck="false"></div>
       <p class="muted"><strong>Save</strong> keeps your positions and history; new leverage, fees and slippage apply to your next orders. Starting cash only changes with <strong>Save &amp; Reset Account</strong>, which erases everything.</p>
       <div class="dlg-actions">
         <button value="cancel" class="btn">Cancel</button>
@@ -169,5 +187,6 @@
   <script src="engine.js"></script>
   <script src="data.js"></script>
   <script src="app.js"></script>
+  <script src="coach.js"></script>
 </body>
 </html>

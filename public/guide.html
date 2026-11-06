@@ -29,6 +29,7 @@
         <li class="sub"><a href="#chart">The chart</a></li>
         <li class="sub"><a href="#ticket">The order ticket</a></li>
         <li class="sub"><a href="#tabs">The tabs at the bottom</a></li>
+        <li class="sub"><a href="#coach">The AI coach</a></li>
         <li><a href="#order-types">Types of order</a></li>
         <li><a href="#bracket">Protecting a trade</a></li>
         <li><a href="#settings">Settings</a></li>
@@ -297,6 +298,26 @@
         <li><strong>Equity curve</strong> <b>(3)</b>: a line showing your account value over time. The dashed line is where you started.</li>
       </ul>
 
+      <h3 id="coach">The AI coach</h3>
+      <p>Press <strong>💬 Ask the coach</strong> under the Buy/Sell button. A panel opens beside the chart where you can ask Claude, an AI from Anthropic, about what's on your screen. It sees the stock you picked, its recent prices, your positions, your money, the order you're filling in, and your recent trades.</p>
+      <ul>
+        <li><strong>Check my order.</strong> Is the size sensible for your account, how much you'd lose if it goes wrong, and where a stop-loss and take-profit could go.</li>
+        <li><strong>Explain the chart.</strong> The trend, important price levels, and anything unusual.</li>
+        <li><strong>My position.</strong> How a trade you're in is going and what to think about next.</li>
+        <li><strong>Review my trades.</strong> What you're doing well and which habits are costing you money.</li>
+        <li>Or type your own question in the box at the bottom, for example <em>"Should I take profit?"</em></li>
+      </ul>
+      <div class="callout"><b class="label">It's a coach, not a fortune teller</b>
+        <p>Nobody can reliably predict prices, and that includes AI. Use the coach to think about risk and to understand the chart, not as a tip to buy or sell.</p>
+      </div>
+      <p><strong>Setting it up.</strong> The coach needs its own key from Anthropic, separate from your Finnhub key:</p>
+      <ol>
+        <li>Sign up at <a href="https://console.anthropic.com" target="_blank" rel="noopener">console.anthropic.com</a> and add a little credit (it's pay-as-you-go).</li>
+        <li>Create an API key and copy it.</li>
+        <li>Press <strong>💬 Ask the coach</strong>, paste the key, and press <strong>Save</strong>. You can change it later in Settings.</li>
+      </ol>
+      <p>Each answer shows roughly what it cost, usually a few cents. The key stays in your browser and is only sent to Anthropic.</p>
+
       <!-- ============ 5 ============ -->
       <h2 id="order-types"><span class="num">5</span>Types of order</h2>
       <p>The <strong>Type</strong> box in the order ticket has three choices.</p>
@@ -353,6 +374,7 @@
         <tr><td><strong>Auto-flatten at 15:55 ET</strong></td><td>Off by default. When ticked, the simulator sells everything at 3:55pm Eastern (5 minutes before the close), so you never hold stocks overnight. Many day traders do this on purpose. It only works while the page is open.</td></tr>
         <tr><td><strong>Sound on fills</strong></td><td>Plays a short beep when an order is filled.</td></tr>
         <tr><td><strong>Finnhub API key</strong></td><td>The key you pasted earlier. Change it here if you ever get a new one.</td></tr>
+        <tr><td><strong>Anthropic API key</strong></td><td>Optional. Powers the AI coach. See <a href="#coach">The AI coach</a>.</td></tr>
         <tr><td><strong>Twelve Data API key</strong></td><td>Optional. Unlocks the 5-day and 1-month charts on the website. Leave it blank if you don't need them.</td></tr>
       </table>
       <p>Press <strong>Save</strong> to keep your changes. Your positions and trade history stay as they are, and new leverage, commission and slippage apply to your next orders. <strong>Cancel</strong> (or the Esc key) throws your changes away.</p>
