@@ -26,7 +26,23 @@ function load() {
 function migrate(s) {
   return { autoFlatten: false, sound: true, equityHist: [], finnhubKey: '', lastAutoFlatten: '', ...s };
 }
-function save() { localStorage.setItem(STORE_KEY, JSON.stringify(store)); }
+function save() {
+  localStorage.setItem(STORE_KEY, JSON.stringify(store));
+  scheduleCloudPush();
+}
+
+// ---------- optional cloud sync (Supabase; see auth.js) ----------
+// finnhubKey stays in this browser only and is never uploaded.
+let cloudReady = false, pushTimer = null;
+const cloudCopy = () => { const { finnhubKey, ...rest } = store; return rest; };
+function scheduleCloudPush() {
+  if (!cloudReady) return;
+  clearTimeout(pushTimer);
+  pushTimer = setTimeout(async () => {
+    try { await Auth.push(cloudCopy()); setSyncLabel('synced'); } catch (e) { setSyncLabel('sync failed'); console.warn(e); }
+  }, 1500);
+}
+function setSyncLabel(t) { const el = document.getElementById('aSync'); if (el) el.textContent = t; }
 
 const $ = (id) => document.getElementById(id);
 const fmt$ = (x) => (x < 0 ? '-$' : '$') + Math.abs(x).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -611,6 +627,62 @@ $('settingsDlg').addEventListener('close', () => {
   }
   save(); renderAll(); drawChart();
 });
+
+// ---------- account / sign-in ----------
+async function onAuthChange(user) {
+  cloudReady = false;
+  const btn = $('btnAccount');
+  btn.classList.remove('hidden');
+  btn.textContent = user ? user.email : 'Sign in';
+  if (!user) return;
+  try {
+    const remote = await Auth.pull();
+    if (!remote) {
+      await Auth.push(cloudCopy());
+    } else {
+      const localUsed = store.acct.fills.length || Object.keys(store.acct.positions).length;
+      if (!localUsed || confirm('Load your saved cloud account?\n\nOK = use the cloud copy.\nCancel = overwrite the cloud with this browser\'s data.')) {
+        store = migrate({ ...remote, finnhubKey: store.finnhubKey });
+        localStorage.setItem(STORE_KEY, JSON.stringify(store));
+        renderAll(); drawChart();
+      } else {
+        await Auth.push(cloudCopy());
+      }
+    }
+    cloudReady = true;
+    setSyncLabel('synced');
+    Auth.plan().then((p) => { $('aPlan').textContent = p; }).catch(() => {});
+  } catch (e) { toast('Cloud sync unavailable: ' + e.message, 'err'); }
+}
+
+function openAuth() {
+  const u = Auth.user();
+  $('authTitle').textContent = u ? 'Your account' : 'Sign in';
+  $('authOut').classList.toggle('hidden', !!u);
+  $('authIn').classList.toggle('hidden', !u);
+  if (u) $('aWho').textContent = u.email;
+  $('authErr').textContent = '';
+  $('authDlg').showModal();
+}
+async function authAction(fn, okMsg) {
+  const email = $('aEmail').value.trim(), pass = $('aPass').value;
+  $('authErr').textContent = '';
+  try { await fn(email, pass); if (okMsg) $('authErr').textContent = okMsg; else $('authDlg').close(); }
+  catch (e) { $('authErr').textContent = e.message; }
+}
+$('btnAccount').addEventListener('click', openAuth);
+$('authForm').addEventListener('submit', (e) => { if (!Auth.user()) { e.preventDefault(); authAction(Auth.signIn); } });
+$('aSignUp').addEventListener('click', () => {
+  if (!$('aPass').value) { $('authErr').textContent = 'Enter a password (6+ characters).'; return; }
+  authAction(async (e, p) => { const r = await Auth.signUp(e, p); if (r.session) $('authDlg').close(); else throw new Error('Check your email to confirm your account, then sign in.'); });
+});
+$('aReset').addEventListener('click', () => {
+  if (!$('aEmail').value) { $('authErr').textContent = 'Enter your email first.'; return; }
+  authAction((e) => Auth.reset(e), 'Password reset email sent.');
+});
+$('aSignOut').addEventListener('click', async () => { await Auth.signOut(); $('authDlg').close(); toast('Signed out. Continuing as guest.', 'ok'); });
+$('aClose').addEventListener('click', () => $('authDlg').close());
+if (window.Auth && Auth.enabled) Auth.init(onAuthChange);
 
 // ---------- boot ----------
 // Prefer the bundled server (full history). On static hosting (e.g. GitHub

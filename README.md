@@ -65,3 +65,13 @@ The Node server is a small, zero-dependency proxy. Browsers can't call the quote
 - Quotes come from Yahoo Finance's public endpoint. They are real-time or near-real-time for NYSE in most cases, but they are not an exchange-direct feed and are unofficial. The endpoint can change or rate-limit without notice.
 - There's no order book. Market orders fill at last price ± slippage, and limit and stop orders trigger on the last trade price.
 - This is for education and practice only, not investment advice.
+
+## Accounts & cloud sync (optional, Supabase)
+
+Off by default, so the hosted site keeps working as a guest-mode app. To enable:
+
+1. Create a project at [supabase.com](https://supabase.com) and run `supabase/schema.sql` in the SQL Editor.
+2. In Authentication → URL Configuration, set the Site URL to your hosted URL (and add `http://localhost:3000` for local testing).
+3. Put the project URL and **anon** key in `public/config.js` and set `AUTH_ENABLED: true`. Never use the `service_role` key there.
+
+Signed-in users get their account and watchlist synced to the `portfolios` table (row-level security restricts each row to its owner). The Finnhub key is never uploaded. `profiles.plan` is reserved for subscriptions and is writable only by a server-side Stripe webhook.
