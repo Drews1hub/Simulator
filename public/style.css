@@ -157,3 +157,4 @@ dialog h2 { margin: 0 0 4px; }
 .tip { position: fixed; z-index: 50; max-width: 300px; background: #0b0f14; color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; box-shadow: 0 8px 24px rgba(0,0,0,.55); pointer-events: none; display: flex; flex-direction: column; gap: 2px; font-size: 13px; line-height: 1.35; }
 .tip span { color: var(--muted); font-size: 11px; }
 .tip.hidden { display: none; }
+.btn.save { background: #15803d; border-color: #15803d; color: #fff; font-weight: 700; }

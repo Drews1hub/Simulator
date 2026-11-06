@@ -711,20 +711,33 @@ $('btnSettings').addEventListener('click', () => {
   $('settingsDlg').showModal();
 });
 $('settingsDlg').addEventListener('close', () => {
+  const how = $('settingsDlg').returnValue; // 'save' | 'reset' | 'cancel' ('' when closed with Esc)
+  if (how !== 'save' && how !== 'reset') return; // Cancel / Esc: discard changes
   store.allowOutside = $('sOutside').checked;
   store.autoFlatten = $('sAutoFlat').checked; store.sound = $('sSound').checked;
-  const key = $('sKey').value.trim(), tkey = $('sTwelve').value.trim();
-  if (key !== (store.finnhubKey || '') || tkey !== (store.twelveKey || '')) { store.finnhubKey = key; store.twelveKey = tkey; save(); if (!(src instanceof DataSources.ServerSource)) location.reload(); }
-  if ($('settingsDlg').returnValue === 'reset') {
+  const money = {
+    leverage: Number($('sLev').value), commissionPerShare: Number($('sComm').value),
+    minCommission: Number($('sMinComm').value), slippageBps: Number($('sSlip').value),
+  };
+  const cash = Number($('sCash').value) || 100000;
+  if (how === 'reset') {
     if (!confirm('Reset the account? All positions and trade history will be erased.')) { save(); renderAll(); return; }
-    store.acct = Engine.createAccount({
-      startingCash: Number($('sCash').value) || 100000, leverage: Number($('sLev').value),
-      commissionPerShare: Number($('sComm').value), minCommission: Number($('sMinComm').value), slippageBps: Number($('sSlip').value),
-    });
+    store.acct = Engine.createAccount({ startingCash: cash, ...money });
     store.dayStart = null; store.equityHist = [];
     toast('Account reset.', 'ok');
+  } else {
+    // Leverage, fees and slippage apply to future orders; positions and history are kept.
+    Object.assign(store.acct.settings, money);
+    toast(cash !== store.acct.settings.startingCash
+      ? 'Settings saved. Starting cash only changes when you reset the account.'
+      : 'Settings saved.', 'ok');
   }
-  save(); renderAll(); drawChart();
+  const key = $('sKey').value.trim(), tkey = $('sTwelve').value.trim();
+  const keysChanged = key !== (store.finnhubKey || '') || tkey !== (store.twelveKey || '');
+  store.finnhubKey = key; store.twelveKey = tkey;
+  save();
+  if (keysChanged && !(src instanceof DataSources.ServerSource)) { location.reload(); return; }
+  renderAll(); drawChart();
 });
 
 // first-visit pointer to the guide (shown once)

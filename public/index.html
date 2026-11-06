@@ -138,9 +138,10 @@
       <label class="check"><input id="sSound" type="checkbox"> Sound on fills</label>
       <div class="field"><label>Finnhub API key (only used when hosted without the server, e.g. GitHub Pages)</label><input id="sKey" autocomplete="off" spellcheck="false"></div>
       <div class="field"><label>Twelve Data API key (optional: unlocks the 5D and 1M charts on the website)</label><input id="sTwelve" autocomplete="off" spellcheck="false"></div>
-      <p class="muted">Changing starting cash, leverage or fees resets the account.</p>
+      <p class="muted"><strong>Save</strong> keeps your positions and history; new leverage, fees and slippage apply to your next orders. Starting cash only changes with <strong>Save &amp; Reset Account</strong>, which erases everything.</p>
       <div class="dlg-actions">
         <button value="cancel" class="btn">Cancel</button>
+        <button value="save" id="btnSave" class="btn save">Save</button>
         <button value="reset" id="btnReset" class="btn danger">Save &amp; Reset Account</button>
       </div>
     </form>
