@@ -82,6 +82,7 @@ async function pollQuotes() {
       const prev = quotes[s];
       q.flash = prev && prev.price && q.price !== prev.price ? (q.price > prev.price ? 'up' : 'down') : '';
       quotes[s] = q;
+      recordTrend(s, q.price);
     }
     const stale = Object.values(data).some((q) => q.stale);
     $('lastUpdate').textContent = (stale ? 'Delayed (provider rate limit) · ' : src.label + ' · ') + new Date().toLocaleTimeString();
@@ -206,6 +207,35 @@ function renderHeader() {
   } else b.classList.add('hidden');
 }
 
+// ---- short-term trend arrow (independent of the day's % change) ----
+const TREND_MS = 5 * 60000;   // compare with the price ~5 minutes ago
+const trendHist = {};         // sym -> [{ t, p }]
+function recordTrend(sym, price) {
+  if (!(price > 0)) return;
+  const now = Date.now();
+  if (!trendHist[sym]) {
+    trendHist[sym] = [];
+    // Website mode keeps 1-minute bars: seed from the bar ~5 min ago so the arrow shows right away.
+    const bars = (src && src.bars && src.bars[sym]) || [];
+    const old = [...bars].reverse().find((b) => now - b.t >= TREND_MS - 60000 && now - b.t <= 3 * TREND_MS);
+    if (old) trendHist[sym].push({ t: old.t, p: old.c });
+  }
+  const h = trendHist[sym];
+  if (!h.length || h[h.length - 1].p !== price || now - h[h.length - 1].t > 30000) h.push({ t: now, p: price });
+  while (h.length > 2 && now - h[1].t > TREND_MS) h.shift(); // keep one sample at/older than 5 min
+}
+function trendArrow(sym) {
+  const h = trendHist[sym];
+  if (!h || h.length < 2) return '<span class="trend flat" title="Watching… arrow appears once the price moves">–</span>';
+  const now = Date.now(), last = h[h.length - 1].p;
+  const base = h[0]; // oldest kept sample (~5 min ago)
+  const diff = last - base.p, mins = Math.max(1, Math.round((now - base.t) / 60000));
+  const pct = (diff / base.p) * 100;
+  const tip = `${diff >= 0 ? '+' : ''}${diff.toFixed(2)} (${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%) in the last ${mins} min`;
+  if (Math.abs(pct) < 0.01) return `<span class="trend flat" title="Flat: ${tip}">–</span>`;
+  return diff > 0 ? `<span class="trend rise" title="Rising: ${tip}">▲</span>` : `<span class="trend fall" title="Falling: ${tip}">▼</span>`;
+}
+
 function renderWatch() {
   const tb = $('watchTable').querySelector('tbody');
   tb.innerHTML = store.watch.map((s) => {
@@ -214,7 +244,7 @@ function renderWatch() {
     return `<tr data-s="${s}" class="${s === store.selected ? 'sel' : ''}">
       <td><span class="sym">${s}</span>${pos ? ` <span class="${pos.qty > 0 ? 'up' : 'down'}" title="position">●</span>` : ''}</td>
       <td class="r ${q.flash ? 'flash-' + q.flash : ''}">${q.error ? '<span class="down" title="' + esc(q.error) + '">err</span>' : fmtPx(q.price)}</td>
-      <td class="r ${cls(q.changePct)}">${q.changePct != null ? fmtPct(q.changePct) : ''}</td>
+      <td class="r"><span class="${cls(q.changePct)}">${q.changePct != null ? fmtPct(q.changePct) : ''}</span> ${q.price ? trendArrow(s) : ''}</td>
       <td><button class="x" data-rm="${s}" title="Remove">×</button></td></tr>`;
   }).join('');
 }

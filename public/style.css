@@ -158,3 +158,6 @@ dialog h2 { margin: 0 0 4px; }
 .tip span { color: var(--muted); font-size: 11px; }
 .tip.hidden { display: none; }
 .btn.save { background: #15803d; border-color: #15803d; color: #fff; font-weight: 700; }
+/* short-term trend arrow next to the watchlist % (own colours, not tied to the % colour) */
+.trend { display: inline-block; width: 1em; text-align: center; font-size: 11px; cursor: help; }
+.trend.rise { color: #22c55e; } .trend.fall { color: #ef4444; } .trend.flat { color: #6b7280; }
