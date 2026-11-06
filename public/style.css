@@ -101,7 +101,7 @@ dialog h2 { margin: 0 0 4px; }
 @keyframes tin { from { transform: translateY(10px); opacity: 0; } }
 
 @media (max-width: 1000px) {
-  .layout { grid-template-columns: 200px 1fr 250px; }
+  .layout { grid-template-columns: 220px 1fr 250px; }
 }
 @media (max-width: 700px) {
   .layout { grid-template-columns: 1fr; grid-template-rows: auto; }
@@ -161,3 +161,11 @@ dialog h2 { margin: 0 0 4px; }
 /* short-term trend arrow next to the watchlist % (own colours, not tied to the % colour) */
 .trend { display: inline-block; width: 1em; text-align: center; font-size: 11px; cursor: help; }
 .trend.rise { color: #22c55e; } .trend.fall { color: #ef4444; } .trend.flat { color: #6b7280; }
+/* keep every watchlist row on one line (arrow beside the %, position dot beside the ticker) */
+#watchTable td, #watchTable th { white-space: nowrap; padding-left: 6px; padding-right: 6px; }
+#watchTable td:last-child, #watchTable th:last-child { padding-left: 0; padding-right: 4px; width: 1%; }
+#watchTable .trend { margin-left: 1px; width: .9em; }
+@media (max-width: 1000px) {
+  #watchTable { font-size: 12px; }
+  #watchTable td, #watchTable th { padding-left: 4px; padding-right: 4px; }
+}
