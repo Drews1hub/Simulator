@@ -137,6 +137,7 @@
       <label class="check"><input id="sAutoFlat" type="checkbox"> Auto-flatten all positions at 15:55 ET (no overnight holds)</label>
       <label class="check"><input id="sSound" type="checkbox"> Sound on fills</label>
       <div class="field"><label>Finnhub API key (only used when hosted without the server, e.g. GitHub Pages)</label><input id="sKey" autocomplete="off" spellcheck="false"></div>
+      <div class="field"><label>Twelve Data API key (optional: unlocks the 5D and 1M charts on the website)</label><input id="sTwelve" autocomplete="off" spellcheck="false"></div>
       <p class="muted">Changing starting cash, leverage or fees resets the account.</p>
       <div class="dlg-actions">
         <button value="cancel" class="btn">Cancel</button>
@@ -154,8 +155,9 @@
         <li>Copy the API key from your dashboard and paste it below</li>
       </ol>
       <div class="field"><label>Finnhub API key</label><input id="keyInput" required autocomplete="off" spellcheck="false"></div>
+      <div class="field"><label>Twelve Data API key (optional, unlocks 5D and 1M charts; free at <a href="https://twelvedata.com/register" target="_blank" rel="noopener">twelvedata.com</a>)</label><input id="keyTwelve" autocomplete="off" spellcheck="false"></div>
       <div id="keyErr" class="down"></div>
-      <p class="muted">The key is stored only in this browser (localStorage) and sent only to finnhub.io.</p>
+      <p class="muted">The key is stored only in this browser (localStorage) and sent only to finnhub.io (and twelvedata.com if you add that key).</p>
       <div class="dlg-actions"><button class="btn submit buy">Connect</button></div>
     </form>
   </dialog>

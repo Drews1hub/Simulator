@@ -33,7 +33,7 @@ Finnhub mode differences:
 
 - **Live quotes**: the watchlist and open positions refresh every 5 s. Price changes flash green or red.
 - **NYSE only**: symbols you add are checked against their listing exchange. For example, Nasdaq names like AAPL are rejected.
-- **Candlestick chart**: 1D/1m, 1D/5m, 5D/15m and 1M/1h views. Includes volume, the previous-close line, your average price and open-order levels. Hover a candle to see its OHLCV.
+- **Candlestick chart**: 1D/1m, 1D/5m, 5D/15m and 1M/1h views. Includes volume, the previous-close line, your average price and open-order levels. Hover a candle to see its OHLCV. On the website (no server), 5D and 1M need an optional free [Twelve Data](https://twelvedata.com/register) key, added in Settings; live prices still come from Finnhub.
 - **Orders**: market, limit and stop, in both directions. The engine works out buy, sell, sell short and buy to cover from your current position, and long/short flips are handled.
 - **Realistic friction**: per-share commission with a minimum, slippage in basis points (1¢ minimum), and intraday leverage of 1×, 2× or 4×. Buying power is enforced, but closing trades are always allowed.
 - **Account metrics**: equity, day P&L (from the ET session start), unrealized and realized P&L, buying power and cash.

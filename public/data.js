@@ -36,8 +36,12 @@ class ServerSource {
 // Free tier has no historical candles, so charts are built from live trades
 // from the moment the page is opened.
 class FinnhubSource {
-  constructor(key) {
+  // twelveKey (optional): a free Twelve Data key that unlocks the 5D and 1M charts.
+  constructor(key, twelveKey = '') {
     this.key = key;
+    this.twelveKey = twelveKey;
+    this.hist = {};      // 'SYM|interval' -> { at, candles } (Twelve Data cache)
+    this.histAt = 0;     // last Twelve Data request time (free plan: 8 req/min)
     this.label = 'Live · Finnhub';
     this.supportsHistory = false;
     this.base = {};      // sym -> REST quote/profile snapshot
@@ -184,6 +188,16 @@ class FinnhubSource {
     if (!this.base[symbol] || !this.base[symbol].q) await this.refreshBase(symbol, true);
     const q = this.toQuote(symbol);
     if (!q || q.error) throw new Error((q && q.error) || 'No data');
+    if (range !== '1d' && this.twelveKey) {
+      try {
+        const candles = await this.longHistory(symbol, interval);
+        if (candles.length) return { ...q, candles };
+      } catch (e) {
+        // Remember the failure for ~1 min (the chart refreshes every few seconds) and show what we have.
+        this.hist[symbol + '|' + interval] = { at: Date.now() - 540000, candles: [] };
+        if (!this.histErrShown) { this.histErrShown = true; throw e; }
+      }
+    }
     const mins = { '1m': 1, '5m': 5, '15m': 15, '60m': 60 }[interval] || 1;
     const out = [];
     for (const b of this.bars[symbol] || []) {
@@ -193,6 +207,42 @@ class FinnhubSource {
       else out.push({ ...b, t });
     }
     return { ...q, candles: out };
+  }
+
+  // 5D / 1M candles from Twelve Data (free key, works from a browser).
+  // Cached for 10 minutes and spaced 8s apart to stay under the free 8 req/min limit.
+  async longHistory(symbol, interval) {
+    const ck = symbol + '|' + interval, hit = this.hist[ck];
+    if (hit && Date.now() - hit.at < 600000) return hit.candles;
+    const wait = this.histAt + 8000 - Date.now();
+    this.histAt = Math.max(Date.now(), this.histAt) + (wait > 0 ? 8000 : 0);
+    if (wait > 0) await new Promise((ok) => setTimeout(ok, wait));
+    const td = { '15m': ['15min', 135], '60m': ['1h', 160] }[interval];
+    if (!td) return [];
+    const url = `https://api.twelvedata.com/time_series?symbol=${encodeURIComponent(symbol)}&interval=${td[0]}` +
+      `&outputsize=${td[1]}&order=asc&timezone=UTC&apikey=${encodeURIComponent(this.twelveKey)}`;
+    const r = await fetch(url);
+    const body = await r.json().catch(() => ({}));
+    if (body.status === 'error' || !Array.isArray(body.values)) {
+      throw new Error(body.message || 'Twelve Data HTTP ' + r.status);
+    }
+    const candles = FinnhubSource.parseTwelve(body.values);
+    this.hist[ck] = { at: Date.now(), candles };
+    return candles;
+  }
+
+  // Twelve Data rows -> our candles. Times are requested in UTC.
+  static parseTwelve(values) {
+    return values.map((v) => ({
+      t: Date.parse(v.datetime.replace(' ', 'T') + 'Z'),
+      o: +v.open, h: +v.high, l: +v.low, c: +v.close, v: +v.volume || 0,
+    })).filter((c) => c.t > 0 && c.c > 0).sort((a, b) => a.t - b.t);
+  }
+
+  static async verifyTwelve(key) {
+    const r = await fetch(`https://api.twelvedata.com/time_series?symbol=KO&interval=1h&outputsize=1&apikey=${encodeURIComponent(key)}`);
+    const body = await r.json().catch(() => ({}));
+    if (body.status === 'error') throw new Error(body.message || 'Twelve Data rejected that key');
   }
 
   // Finnhub /search: returns matching symbols; keep common stocks only.

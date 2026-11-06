@@ -24,7 +24,7 @@ function load() {
   return { acct: Engine.createAccount(), watch: DEFAULT_WATCH.slice(), selected: 'JPM', allowOutside: true, dayStart: null };
 }
 function migrate(s) {
-  return { autoFlatten: false, sound: true, equityHist: [], finnhubKey: '', lastAutoFlatten: '', seenGuide: false, ...s };
+  return { autoFlatten: false, sound: true, equityHist: [], finnhubKey: '', twelveKey: '', lastAutoFlatten: '', seenGuide: false, ...s };
 }
 function save() { localStorage.setItem(STORE_KEY, JSON.stringify(store)); }
 
@@ -707,13 +707,14 @@ $('btnSettings').addEventListener('click', () => {
   $('sOutside').checked = store.allowOutside;
   $('sAutoFlat').checked = store.autoFlatten; $('sSound').checked = store.sound;
   $('sKey').value = store.finnhubKey || '';
+  $('sTwelve').value = store.twelveKey || '';
   $('settingsDlg').showModal();
 });
 $('settingsDlg').addEventListener('close', () => {
   store.allowOutside = $('sOutside').checked;
   store.autoFlatten = $('sAutoFlat').checked; store.sound = $('sSound').checked;
-  const key = $('sKey').value.trim();
-  if (key !== (store.finnhubKey || '')) { store.finnhubKey = key; save(); if (!(src instanceof DataSources.ServerSource)) location.reload(); }
+  const key = $('sKey').value.trim(), tkey = $('sTwelve').value.trim();
+  if (key !== (store.finnhubKey || '') || tkey !== (store.twelveKey || '')) { store.finnhubKey = key; store.twelveKey = tkey; save(); if (!(src instanceof DataSources.ServerSource)) location.reload(); }
   if ($('settingsDlg').returnValue === 'reset') {
     if (!confirm('Reset the account? All positions and trade history will be erased.')) { save(); renderAll(); return; }
     store.acct = Engine.createAccount({
@@ -742,7 +743,7 @@ showGuideNotice();
 // Pages) fall back to Finnhub direct-from-browser with the user's free key.
 async function pickSource() {
   if (await DataSources.ServerSource.available()) return new DataSources.ServerSource();
-  if (store.finnhubKey) return new DataSources.FinnhubSource(store.finnhubKey);
+  if (store.finnhubKey) return new DataSources.FinnhubSource(store.finnhubKey, store.twelveKey);
   return null;
 }
 
@@ -755,9 +756,11 @@ function askForKey() {
     $('keyErr').textContent = 'Checking…';
     try {
       await DataSources.FinnhubSource.verify(key);
-      store.finnhubKey = key; save();
+      const tkey = $('keyTwelve').value.trim();
+      if (tkey) await DataSources.FinnhubSource.verifyTwelve(tkey);
+      store.finnhubKey = key; store.twelveKey = tkey; save();
       dlg.close();
-      start(new DataSources.FinnhubSource(key));
+      start(new DataSources.FinnhubSource(key, tkey));
     } catch (err) { $('keyErr').textContent = err.message; }
   };
 }
@@ -765,8 +768,12 @@ function askForKey() {
 function start(source) {
   src = source;
   if (!src.supportsHistory) {
-    // No historical bars in Finnhub mode: only minute-based views make sense.
-    [...$('rangeSeg').children].forEach((b) => { b.disabled = b.dataset.r !== '1d'; });
+    // Finnhub has no historical bars: 5D / 1M need a Twelve Data key.
+    const long = !!src.twelveKey;
+    [...$('rangeSeg').children].forEach((b) => {
+      b.disabled = b.dataset.r !== '1d' && !long;
+      if (b.dataset.r !== '1d') b.title = long ? '' : 'Add a free Twelve Data key in Settings to unlock this view';
+    });
   }
   loadChart();
   pollQuotes();
