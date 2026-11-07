@@ -26,7 +26,23 @@ function load() {
 function migrate(s) {
   return { autoFlatten: false, sound: true, equityHist: [], finnhubKey: '', lastAutoFlatten: '', ...s };
 }
-function save() { localStorage.setItem(STORE_KEY, JSON.stringify(store)); }
+function save() {
+  localStorage.setItem(STORE_KEY, JSON.stringify(store));
+  scheduleCloudPush();
+}
+
+// ---------- optional cloud sync (Supabase; see auth.js) ----------
+// finnhubKey stays in this browser only and is never uploaded.
+let cloudReady = false, pushTimer = null;
+const cloudCopy = () => { const { finnhubKey, ...rest } = store; return rest; };
+function scheduleCloudPush() {
+  if (!cloudReady) return;
+  clearTimeout(pushTimer);
+  pushTimer = setTimeout(async () => {
+    try { await Auth.push(cloudCopy()); setSyncLabel('synced'); } catch (e) { setSyncLabel('sync failed'); console.warn(e); }
+  }, 1500);
+}
+function setSyncLabel(t) { const el = document.getElementById('aSync'); if (el) el.textContent = t; }
 
 const $ = (id) => document.getElementById(id);
 const fmt$ = (x) => (x < 0 ? '-$' : '$') + Math.abs(x).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -611,6 +627,84 @@ $('settingsDlg').addEventListener('close', () => {
   }
   save(); renderAll(); drawChart();
 });
+
+// ---------- account / sign-in ----------
+async function onAuthChange(user) {
+  cloudReady = false;
+  const btn = $('btnAccount');
+  btn.classList.remove('hidden');
+  btn.textContent = user ? user.email : 'Sign in';
+  if (!user) return;
+  try {
+    const remote = await Auth.pull();
+    if (!remote) {
+      await Auth.push(cloudCopy());
+    } else {
+      const localUsed = store.acct.fills.length || Object.keys(store.acct.positions).length;
+      if (!localUsed || confirm('Load your saved cloud account?\n\nOK = use the cloud copy.\nCancel = overwrite the cloud with this browser\'s data.')) {
+        store = migrate({ ...remote, finnhubKey: store.finnhubKey });
+        localStorage.setItem(STORE_KEY, JSON.stringify(store));
+        renderAll(); drawChart();
+      } else {
+        await Auth.push(cloudCopy());
+      }
+    }
+    cloudReady = true;
+    setSyncLabel('synced');
+    Auth.plan().then((p) => { $('aPlan').textContent = p; }).catch(() => {});
+  } catch (e) { toast('Cloud sync unavailable: ' + e.message, 'err'); }
+}
+
+function openAuth() {
+  const u = Auth.user();
+  $('authTitle').textContent = u ? 'Your account' : 'Sign in';
+  $('authOut').classList.toggle('hidden', !!u);
+  $('authIn').classList.toggle('hidden', !u);
+  if (u) $('aWho').textContent = u.email;
+  $('authErr').textContent = '';
+  $('authDlg').showModal();
+}
+function authMsg(text, ok) {
+  const el = $('authErr');
+  el.textContent = text;
+  el.className = ok ? 'up' : 'down';
+}
+// fn returns a success message to keep the dialog open, or nothing to close it.
+let authBusy = false;
+async function authAction(fn) {
+  if (authBusy) return;
+  const email = $('aEmail').value.trim(), pass = $('aPass').value;
+  const btns = ['aSignIn', 'aSignUp', 'aReset'].map($);
+  authBusy = true; btns.forEach((b) => { b.disabled = true; });
+  authMsg('');
+  try {
+    const msg = await fn(email, pass);
+    if (msg) authMsg(msg, true); else $('authDlg').close();
+  } catch (e) {
+    const m = /only request this after (\d+) seconds/i.exec(e.message || '');
+    authMsg(m ? `Email already sent. Check your inbox (and spam). You can retry in ${m[1]}s.` : e.message);
+  } finally {
+    authBusy = false; btns.forEach((b) => { b.disabled = false; });
+  }
+}
+$('btnAccount').addEventListener('click', openAuth);
+$('authForm').addEventListener('submit', (e) => { if (!Auth.user()) { e.preventDefault(); authAction((em, p) => Auth.signIn(em, p).then(() => null)); } });
+$('aSignUp').addEventListener('click', () => {
+  if (!$('aEmail').value.trim()) { authMsg('Enter your email.'); return; }
+  if ($('aPass').value.length < 6) { authMsg('Password must be 6+ characters.'); return; }
+  authAction(async (e, p) => {
+    const r = await Auth.signUp(e, p);
+    return r.session ? null : 'Account created. Check your email for a confirmation link, then come back and sign in.';
+  });
+});
+$('aReset').addEventListener('click', () => {
+  if (!$('aEmail').value.trim()) { authMsg('Enter your email first.'); return; }
+  authAction((e) => Auth.reset(e).then(() => 'Password reset email sent.'));
+});
+$('aSignOut').addEventListener('click', async () => { await Auth.signOut(); $('authDlg').close(); toast('Signed out. Continuing as guest.', 'ok'); });
+$('aClose').addEventListener('click', () => $('authDlg').close());
+// Never let auth problems block the simulator from booting.
+if (window.Auth && Auth.enabled) Promise.resolve().then(() => Auth.init(onAuthChange)).catch((e) => console.warn('Auth init failed:', e));
 
 // ---------- boot ----------
 // Prefer the bundled server (full history). On static hosting (e.g. GitHub
