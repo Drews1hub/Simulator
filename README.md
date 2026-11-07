@@ -4,9 +4,9 @@ A paper-trading simulator that runs on **live NYSE market data**. It starts you 
 
 ![features](https://img.shields.io/badge/deps-zero-brightgreen)
 
-## Two ways to run it
+## Running it
 
-### 1. Locally with the data server (full chart history)
+### Locally
 
 Requires Node.js 18+ (uses built-in `fetch`). No `npm install` needed.
 
@@ -15,13 +15,25 @@ npm start
 # open http://localhost:3000
 ```
 
-Set `PORT=8080 npm start` to change the port. Run the engine tests with `npm test`.
+Set `PORT=8080 npm start` to change the port. Run the engine tests with `npm test`. To run the production Cloudflare Worker locally instead, use `npm run dev:cf` (http://localhost:8787).
 
-### 2. Hosted on GitHub Pages (no server)
+### Production: Cloudflare Workers (trader.beneby.cc)
 
-`.github/workflows/pages.yml` publishes the `public/` folder to GitHub Pages on every push to `main`. One-time setup: in the repo's **Settings → Pages**, set **Source** to **GitHub Actions**.
+`worker/index.mjs` serves `public/` as static assets and runs the same market-data proxy as `server.js` (both use `lib/market.mjs`) on `/api/*`. Config is in `wrangler.jsonc`.
 
-GitHub Pages can't run the Node proxy, so the hosted copy streams real-time NYSE trades straight from the browser using [Finnhub](https://finnhub.io/register). It asks for a free API key on first visit. The key is stored only in that browser and sent only to finnhub.io.
+Deploys come straight from GitHub through Cloudflare Workers Builds. A push to `main` deploys production, and every other branch gets its own preview URL. One-time setup in the Cloudflare dashboard:
+
+1. **Workers & Pages → Create → Import a repository**, then pick `BenEby15/trader`. The defaults work as-is, with deploy command `npx wrangler deploy`.
+2. In the new Worker, open **Settings → Domains & Routes → Add → Custom domain** and enter `trader.beneby.cc`.
+3. In Supabase **Authentication → URL Configuration**, set the Site URL to `https://trader.beneby.cc` and keep `http://localhost:3000` under Redirect URLs.
+
+To deploy by hand instead, run `npm run deploy`, which needs `wrangler login` first.
+
+On the custom domain the Worker caches each symbol in Cloudflare's edge cache for 4 s. Every visitor watching the same symbol shares one upstream request, which keeps traffic to Yahoo low as usage grows.
+
+### Static-only hosting (Finnhub fallback)
+
+If `public/` is served without the proxy, the app streams real-time NYSE trades straight from the browser using [Finnhub](https://finnhub.io/register). It asks for a free API key on first visit. The key is stored only in that browser and sent only to finnhub.io.
 
 Finnhub mode differences:
 - Charts build from live trades from the moment you open the page. The free tier has no historical candles, so only the 1-day views are enabled.
@@ -51,14 +63,14 @@ The NYSE regular session runs 9:30–16:00 ET. The simulator reads the exchange'
 ## How it works
 
 ```
-browser (public/)  ──►  server.js  ──►  Yahoo Finance chart API (live/delayed NYSE prices)
-   app.js   UI, polling, chart
+browser (public/)  ──►  server.js (local) or worker/index.mjs (Cloudflare)  ──►  Yahoo Finance chart API
+   app.js   UI, polling, chart                └── both use lib/market.mjs
    engine.js  pure order/fill/P&L engine (also unit-tested in Node)
 ```
 
-On startup the browser checks for the server (`api/health`). If it isn't there, as on GitHub Pages, it switches to Finnhub mode (`public/data.js`).
+On startup the browser checks for the proxy (`api/health`). If it isn't there, as on static-only hosting, it switches to Finnhub mode (`public/data.js`).
 
-The Node server is a small, zero-dependency proxy. Browsers can't call the quote API directly because of CORS, so the server fetches it, normalizes the response, and caches each symbol for 4 s to stay polite to the upstream. If Yahoo rate-limits it (HTTP 429), it backs off and keeps serving the last good quotes, and the UI shows them as *Delayed*.
+The proxy is small and has no dependencies. Browsers can't call the quote API directly because of CORS, so the server fetches it, normalizes the response, and caches each symbol for 4 s to stay polite to the upstream. If Yahoo rate-limits it (HTTP 429), it backs off and keeps serving the last good quotes, and the UI shows them as *Delayed*.
 
 ## Caveats
 
@@ -68,7 +80,7 @@ The Node server is a small, zero-dependency proxy. Browsers can't call the quote
 
 ## Accounts & cloud sync (optional, Supabase)
 
-Off by default, so the hosted site keeps working as a guest-mode app. To enable:
+Enabled for trader.beneby.cc via `public/config.js`. Visitors who don't sign in keep using the app as guests. To set up a new Supabase project:
 
 1. Create a project at [supabase.com](https://supabase.com) and run `supabase/schema.sql` in the SQL Editor.
 2. In Authentication → URL Configuration, set the Site URL to your hosted URL (and add `http://localhost:3000` for local testing).

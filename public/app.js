@@ -664,25 +664,47 @@ function openAuth() {
   $('authErr').textContent = '';
   $('authDlg').showModal();
 }
-async function authAction(fn, okMsg) {
+function authMsg(text, ok) {
+  const el = $('authErr');
+  el.textContent = text;
+  el.className = ok ? 'up' : 'down';
+}
+// fn returns a success message to keep the dialog open, or nothing to close it.
+let authBusy = false;
+async function authAction(fn) {
+  if (authBusy) return;
   const email = $('aEmail').value.trim(), pass = $('aPass').value;
-  $('authErr').textContent = '';
-  try { await fn(email, pass); if (okMsg) $('authErr').textContent = okMsg; else $('authDlg').close(); }
-  catch (e) { $('authErr').textContent = e.message; }
+  const btns = ['aSignIn', 'aSignUp', 'aReset'].map($);
+  authBusy = true; btns.forEach((b) => { b.disabled = true; });
+  authMsg('');
+  try {
+    const msg = await fn(email, pass);
+    if (msg) authMsg(msg, true); else $('authDlg').close();
+  } catch (e) {
+    const m = /only request this after (\d+) seconds/i.exec(e.message || '');
+    authMsg(m ? `Email already sent. Check your inbox (and spam). You can retry in ${m[1]}s.` : e.message);
+  } finally {
+    authBusy = false; btns.forEach((b) => { b.disabled = false; });
+  }
 }
 $('btnAccount').addEventListener('click', openAuth);
-$('authForm').addEventListener('submit', (e) => { if (!Auth.user()) { e.preventDefault(); authAction(Auth.signIn); } });
+$('authForm').addEventListener('submit', (e) => { if (!Auth.user()) { e.preventDefault(); authAction((em, p) => Auth.signIn(em, p).then(() => null)); } });
 $('aSignUp').addEventListener('click', () => {
-  if (!$('aPass').value) { $('authErr').textContent = 'Enter a password (6+ characters).'; return; }
-  authAction(async (e, p) => { const r = await Auth.signUp(e, p); if (r.session) $('authDlg').close(); else throw new Error('Check your email to confirm your account, then sign in.'); });
+  if (!$('aEmail').value.trim()) { authMsg('Enter your email.'); return; }
+  if ($('aPass').value.length < 6) { authMsg('Password must be 6+ characters.'); return; }
+  authAction(async (e, p) => {
+    const r = await Auth.signUp(e, p);
+    return r.session ? null : 'Account created. Check your email for a confirmation link, then come back and sign in.';
+  });
 });
 $('aReset').addEventListener('click', () => {
-  if (!$('aEmail').value) { $('authErr').textContent = 'Enter your email first.'; return; }
-  authAction((e) => Auth.reset(e), 'Password reset email sent.');
+  if (!$('aEmail').value.trim()) { authMsg('Enter your email first.'); return; }
+  authAction((e) => Auth.reset(e).then(() => 'Password reset email sent.'));
 });
 $('aSignOut').addEventListener('click', async () => { await Auth.signOut(); $('authDlg').close(); toast('Signed out. Continuing as guest.', 'ok'); });
 $('aClose').addEventListener('click', () => $('authDlg').close());
-if (window.Auth && Auth.enabled) Auth.init(onAuthChange);
+// Never let auth problems block the simulator from booting.
+if (window.Auth && Auth.enabled) Promise.resolve().then(() => Auth.init(onAuthChange)).catch((e) => console.warn('Auth init failed:', e));
 
 // ---------- boot ----------
 // Prefer the bundled server (full history). On static hosting (e.g. GitHub

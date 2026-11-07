@@ -39,6 +39,7 @@
 
   window.Auth = {
     enabled,
+    init,
     user: () => user,
     signIn: (email, password) => client.auth.signInWithPassword({ email, password }).then(unwrap),
     signUp: (email, password) => client.auth.signUp({ email, password }).then(unwrap),
