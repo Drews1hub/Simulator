@@ -197,3 +197,30 @@ dialog h2 { margin: 0 0 4px; }
   .chart-body .chart-wrap { min-height: 300px; }
   .coach { width: auto; border-left: 0; border-top: 1px solid var(--line); max-height: 70vh; }
 }
+
+/* ---- watchlist: star + today's sparkline ---- */
+/* wider watchlist on desktop to fit the star and sparkline (tablet/phone layouts unchanged) */
+@media (min-width: 1201px) { .layout { grid-template-columns: 300px 1fr 280px; } }
+@media (min-width: 1001px) and (max-width: 1200px) { .layout { grid-template-columns: 280px 1fr 250px; } }
+/* tablet: the 220px watchlist has no room for the sparkline; phones (single column) do */
+@media (min-width: 701px) and (max-width: 1000px) { #watchTable .spark-cell, #watchTable th:nth-child(2) { display: none; } }
+.star { background: none; border: 0; padding: 0 4px 0 0; cursor: pointer; color: var(--muted); font-size: 13px; line-height: 1; }
+.star:hover { color: var(--warn); }
+.star.on { color: var(--warn); }
+#watchTable td.spark-cell { padding-left: 2px; padding-right: 2px; width: 48px; }
+.spark { display: block; overflow: visible; }
+.spark polyline { fill: none; stroke-width: 1.3; stroke-linejoin: round; stroke-linecap: round; }
+.spark .spark-up { stroke: var(--up); } .spark .spark-down { stroke: var(--down); }
+.spark .spark-base { stroke: var(--muted); stroke-width: .7; stroke-dasharray: 2 2; opacity: .6; }
+
+/* ---- compact market status (replaces the full-width banner) ---- */
+.status-pill { cursor: help; white-space: nowrap; }
+#mDayPct { font-size: 11px; font-weight: 600; }
+
+/* ---- positions: today / open P&L summary and bigger gain-loss ---- */
+.pnl-summary { display: flex; gap: 28px; flex-wrap: wrap; padding: 10px 12px; border-bottom: 1px solid var(--line); background: var(--panel2); }
+.pnl-summary label { display: block; font-size: 10px; text-transform: uppercase; color: var(--muted); letter-spacing: .5px; }
+.pnl-summary b { font-size: 18px; font-variant-numeric: tabular-nums; }
+.pnl-summary span { font-size: 12px; font-weight: 600; }
+.pnl-cell b { font-size: 14px; }
+.pnl-cell span { font-size: 11px; opacity: .9; margin-left: 4px; }
