@@ -82,14 +82,14 @@ function session() {
   const tp = Object.values(quotes).find((q) => q.tradingPeriod)?.tradingPeriod;
   const now = Date.now() / 1000;
   if (tp && tp.regular && tp.pre && tp.post && now >= tp.pre.start && now < tp.post.end) {
-    if (now >= tp.regular.start && now < tp.regular.end) return { state: 'open', label: 'NYSE Open' };
+    if (now >= tp.regular.start && now < tp.regular.end) return { state: 'open', label: 'Market Open' };
     if (now >= tp.pre.start && now < tp.pre.end) return { state: 'ext', label: 'Pre-Market' };
     if (now >= tp.post.start && now < tp.post.end) return { state: 'ext', label: 'After Hours' };
     return { state: 'closed', label: 'Market Closed' };
   }
   const { wd, mins } = etParts();
   if (wd === 'Sat' || wd === 'Sun') return { state: 'closed', label: 'Market Closed (weekend)' };
-  if (mins >= 570 && mins < 960) return { state: 'open', label: 'NYSE Open' };
+  if (mins >= 570 && mins < 960) return { state: 'open', label: 'Market Open' };
   if (mins >= 240 && mins < 570) return { state: 'ext', label: 'Pre-Market' };
   if (mins >= 960 && mins < 1200) return { state: 'ext', label: 'After Hours' };
   return { state: 'closed', label: 'Market Closed' };
@@ -245,7 +245,7 @@ function renderHeader() {
   if (s.state !== 'open') {
     b.textContent = store.allowOutside
       ? `${s.label}: orders fill against the latest extended-hours or last-close price. Turn this off in Settings to trade only during the regular session (9:30–16:00 ET).`
-      : `${s.label}: trading is paused until the NYSE regular session opens (9:30 ET). Quotes keep updating.`;
+      : `${s.label}: trading is paused until the regular session opens (9:30 ET). Quotes keep updating.`;
     b.classList.remove('hidden');
   } else b.classList.add('hidden');
 }
@@ -578,7 +578,6 @@ function addToWatch(s, q) {
   selectSymbol(s);
 }
 
-let pendingAdd = null; // non-NYSE symbol awaiting "Add anyway"
 async function addSymbol(raw) {
   const s = raw.trim().toUpperCase().replace(/^\$/, '');
   if (!s) return;
@@ -592,11 +591,13 @@ async function addSymbol(raw) {
       new Promise((_, rej) => setTimeout(() => rej(new Error('lookup timed out, the data provider is busy. Try again.')), 20000)),
     ]);
     const { candles, ...q } = d;
-    if (d.isNYSE || d.isFuture) return addToWatch(s, q);
-    pendingAdd = { s, q };
-    const where = d.exchangeName || d.exchange;
-    addStatus(`${s}${d.name && d.name !== s ? ' (' + esc(d.name) + ')' : ''} ${where ? 'trades on ' + esc(where) : 'has no exchange listed'}, not the NYSE. <button class="btn small" id="addAnyway">Add anyway</button>`, 'warn');
-    $('addAnyway').onclick = () => { if (pendingAdd) addToWatch(pendingAdd.s, pendingAdd.q); pendingAdd = null; };
+    // Any US-listed stock or ETF (NYSE, Nasdaq, NYSE American, ...) plus the supported futures.
+    // Foreign listings (e.g. BMW.DE) quote in other currencies, which the account can't hold.
+    if (!d.isFuture && d.currency && d.currency !== 'USD') {
+      const where = d.exchangeName || d.exchange;
+      return addStatus(`${s}${where ? ' trades on ' + esc(where) : ''} in ${esc(d.currency)}. Only US-listed stocks and ETFs (priced in USD) are supported.`, 'down');
+    }
+    addToWatch(s, q);
   } catch (e) {
     addStatus(`Couldn't add ${s}: ${esc(/unknown|no data/i.test(e.message) ? 'no such stock found.' : e.message)}`, 'down');
   }

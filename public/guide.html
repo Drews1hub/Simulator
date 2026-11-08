@@ -12,7 +12,7 @@
 </head>
 <body>
   <div class="top">
-    <span class="brand">NYSE <span>Day Trader Sim</span> · Guide</span>
+    <span class="brand">US <span>Day Trader Sim</span> · Guide</span>
     <a class="btn" href="./">← Back to the simulator</a>
   </div>
 
@@ -54,7 +54,7 @@
       <ul>
         <li>A <strong>stock</strong> is a small piece of a company. One piece is called a <strong>share</strong>.</li>
         <li>Every stock has a short code called a <strong>ticker</strong>. Coca-Cola is <code>KO</code>, JPMorgan is <code>JPM</code>, Ford is <code>F</code>.</li>
-        <li>The <strong>NYSE</strong> (New York Stock Exchange) is the place where many of these stocks are bought and sold.</li>
+        <li>Stocks are bought and sold on an <strong>exchange</strong>. The two biggest in the US are the <strong>NYSE</strong> (New York Stock Exchange) and <strong>Nasdaq</strong>. You can trade stocks from both here, plus <strong>ETFs</strong> (one ticker that holds a whole basket of stocks, like <code>SPY</code>).</li>
         <li>You make money if you <strong>buy low and sell higher</strong>. You lose money if the price goes the other way.</li>
       </ul>
 
@@ -170,7 +170,7 @@
       <h3 id="topbar">The top bar</h3>
       <figure><a href="guide/topbar.png" target="_blank" rel="noopener"><img src="guide/topbar.png" alt="The top bar with eleven items numbered" loading="lazy"></a></figure>
       <ol class="callouts">
-        <li><strong>Market status.</strong> Says <em>NYSE Open</em> during trading hours. Otherwise it says <em>Pre-Market</em> (early morning), <em>After Hours</em> (evening) or <em>Market Closed</em>.</li>
+        <li><strong>Market status.</strong> Says <em>Market Open</em> during trading hours. Otherwise it says <em>Pre-Market</em> (early morning), <em>After Hours</em> (evening) or <em>Market Closed</em>.</li>
         <li><strong>Equity.</strong> The total value of your account right now: your cash, plus the shares you own, minus anything you owe. You start with $100,000.</li>
         <li><strong>Day P&amp;L.</strong> How much you're up or down <em>today</em>. ("P&amp;L" means profit and loss.) Green is up, red is down.</li>
         <li><strong>Unrealized.</strong> Profit or loss on shares you <em>still own</em>. It changes every second as prices move, and it only becomes real when you sell.</li>
@@ -202,8 +202,7 @@
         <li>Type a name or a ticker.</li>
         <li>Click a match, or use the up and down arrow keys and press <kbd>Enter</kbd>. The stock is added to the bottom of your list.</li>
       </ol>
-      <p>The tag on the right of each match shows which exchange it trades on. Many famous companies, like Apple, trade on a different exchange called <strong>Nasdaq</strong> instead of the NYSE. The simulator tells you when that happens and shows an <strong>Add anyway</strong> button. Click it and you can trade that stock like any other.</p>
-      <figure class="narrow"><a href="guide/add-anyway.png" target="_blank" rel="noopener"><img src="guide/add-anyway.png" alt="A message saying AAPL trades on Nasdaq, not the NYSE, with an Add anyway button" loading="lazy"></a></figure>
+      <p>The tag on the right of each match shows which exchange it trades on, such as NYSE or Nasdaq. Any US-listed stock or ETF works the same way, so <code>AAPL</code>, <code>NVDA</code> and <code>SPY</code> can all be added and traded.</p>
 
       <h3 id="chart">The chart</h3>
       <p>The chart shows how the price of the selected stock has moved. Each little bar is called a <strong>candle</strong>. One candle shows what happened to the price during one short period, such as one minute.</p>
@@ -451,17 +450,17 @@
         <details><summary>The chart is empty or has just one bar</summary><div>
           On the website the free price data has no history, so the chart builds up while the page is open, one candle per minute. When the market is closed there are no new trades, so you only see one flat candle. Leave the page open during market hours (9:30am to 4:00pm Eastern, Monday to Friday) and it fills in.</div></details>
         <details><summary>The prices aren't moving</summary><div>
-          Check the market status at the top left. If it says <em>Market Closed</em>, prices stay put until the next trading day opens. Weekends and US holidays are closed too. If it says <em>NYSE Open</em> and the numbers are still frozen, reload the page.</div></details>
+          Check the market status at the top left. If it says <em>Market Closed</em>, prices stay put until the next trading day opens. Weekends and US holidays are closed too. If it says <em>Market Open</em> and the numbers are still frozen, reload the page.</div></details>
         <details><summary>"Finnhub rejected that API key"</summary><div>
           The key was copied incorrectly, or it's the wrong one. Go back to your Finnhub page and copy the long key under <strong>API Key</strong> (not the Webhook "Secret"). Paste it again with no spaces before or after.</div></details>
         <details><summary>I can't add a stock</summary><div>
           Read the message under the search box. It will say one of these:
           <ul>
             <li><em>"no such stock found"</em>: check the ticker, or search by company name instead.</li>
-            <li><em>"trades on … not the NYSE"</em>: the stock is on another exchange. Click <strong>Add anyway</strong>.</li>
+            <li><em>"Only US-listed stocks and ETFs"</em>: it's a foreign listing priced in another currency, which the simulator can't trade.</li>
             <li><em>"timed out"</em>: the price service is busy. Wait a few seconds and try again.</li>
           </ul>
-          Only US-listed stocks are supported. Foreign listings aren't.</div></details>
+          Any US-listed stock or ETF works. Foreign listings don't.</div></details>
         <details><summary>The Buy button is grey or nothing happens</summary><div>
           The button is grey while it has no price for that stock yet. Wait a few seconds. If you unticked "Allow trading outside regular hours" in Settings, you can only trade while the market is open. A red message at the bottom right says what went wrong. A common one is <em>"Insufficient buying power"</em>: you're trying to buy more than you can afford. Lower the number of shares or press <strong>Max</strong>.</div></details>
         <details><summary>The "Connect live market data" box keeps appearing</summary><div>
