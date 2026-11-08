@@ -124,8 +124,9 @@ async function pollQuotes() {
       if (q.error) { if (!quotes[s]) quotes[s] = { symbol: s, error: q.error }; continue; }
       const prev = quotes[s];
       q.flash = prev && prev.price && q.price !== prev.price ? (q.price > prev.price ? 'up' : 'down') : '';
+      const recent = q.recent; delete q.recent;
       quotes[s] = q;
-      recordTrend(s, q.price);
+      recordTrend(s, q.price, recent);
     }
     const stale = Object.values(data).some((q) => q.stale);
     $('lastUpdate').textContent = (stale ? 'Delayed (provider rate limit) · ' : src.label + ' · ') + new Date().toLocaleTimeString();
@@ -253,13 +254,15 @@ function renderHeader() {
 // ---- short-term trend arrow (independent of the day's % change) ----
 const TREND_MS = 5 * 60000;   // compare with the price ~5 minutes ago
 const trendHist = {};         // sym -> [{ t, p }]
-function recordTrend(sym, price) {
+// recent (server/Worker mode): the last few 1-minute closes as [time, price].
+function recordTrend(sym, price, recent) {
   if (!(price > 0)) return;
   const now = Date.now();
   if (!trendHist[sym]) {
     trendHist[sym] = [];
-    // Website mode keeps 1-minute bars: seed from the bar ~5 min ago so the arrow shows right away.
-    const bars = (src && src.bars && src.bars[sym]) || [];
+    // Seed from the 1-minute bar ~5 min ago so the arrow is right as soon as the page loads.
+    // Website mode keeps its own bars; the server sends the last few with each quote.
+    const bars = (src && src.bars && src.bars[sym]) || (recent || []).map(([t, c]) => ({ t, c }));
     const old = [...bars].reverse().find((b) => now - b.t >= TREND_MS - 60000 && now - b.t <= 3 * TREND_MS);
     if (old) trendHist[sym].push({ t: old.t, p: old.c });
   }
