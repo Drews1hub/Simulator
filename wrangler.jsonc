@@ -1,0 +1,13 @@
+// Cloudflare Workers config. Deploys automatically from GitHub via Workers Builds
+// (push to main = production; other branches get preview URLs).
+{
+  "name": "trader",
+  "main": "worker/index.mjs",
+  "compatibility_date": "2025-09-01",
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "run_worker_first": ["/api/*"]
+  },
+  "observability": { "enabled": true }
+}

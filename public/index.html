@@ -27,6 +27,7 @@
       <select id="profileSel" class="btn profile-sel" title="Switch profile: each one has its own money, positions and trade history"></select>
       <button id="btnFlatten" class="btn danger" title="Close all positions at market (F)">Flatten All</button>
       <a id="btnHelp" class="btn" href="guide.html" title="How to use this simulator">? Help</a>
+      <button id="btnAccount" class="btn hidden">Sign in</button>
       <button id="btnSettings" class="btn">⚙</button>
     </div>
   </header>
@@ -182,8 +183,34 @@
     </form>
   </dialog>
 
+  <dialog id="authDlg">
+    <form id="authForm">
+      <h2 id="authTitle">Sign in</h2>
+      <div id="authOut">
+        <div class="field"><label>Email</label><input id="aEmail" type="email" required autocomplete="email"></div>
+        <div class="field"><label>Password</label><input id="aPass" type="password" minlength="6" autocomplete="current-password"></div>
+        <div id="authErr" class="down"></div>
+        <p class="muted">Signing in saves your account and watchlist to the cloud so it follows you across devices. You can keep using the simulator as a guest.</p>
+        <div class="dlg-actions">
+          <button type="button" id="aReset" class="btn">Forgot password</button>
+          <button type="button" id="aSignUp" class="btn">Create account</button>
+          <button id="aSignIn" class="btn submit buy">Sign in</button>
+        </div>
+      </div>
+      <div id="authIn" class="hidden">
+        <p>Signed in as <b id="aWho"></b><br><span class="muted">Plan: <span id="aPlan">free</span> · <span id="aSync">synced</span></span></p>
+        <div class="dlg-actions">
+          <button type="button" id="aClose" class="btn">Close</button>
+          <button type="button" id="aSignOut" class="btn danger">Sign out</button>
+        </div>
+      </div>
+    </form>
+  </dialog>
+
   <div id="toasts"></div>
 
+  <script src="config.js"></script>
+  <script src="auth.js"></script>
   <script src="engine.js"></script>
   <script src="data.js"></script>
   <script src="app.js"></script>
