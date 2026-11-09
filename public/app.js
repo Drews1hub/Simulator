@@ -41,7 +41,25 @@ function load() {
 function migrate(s) {
   return { autoFlatten: false, sound: true, equityHist: [], finnhubKey: '', twelveKey: '', anthropicKey: '', lastAutoFlatten: '', seenGuide: false, ...s };
 }
-function save() { if (store) localStorage.setItem(STORE_KEY, JSON.stringify(store)); }
+function save() {
+  if (!store) return;
+  localStorage.setItem(STORE_KEY, JSON.stringify(store));
+  scheduleCloudPush();
+}
+
+// ---------- optional cloud sync (Supabase; see auth.js) ----------
+// API keys stay in this browser only and are never uploaded.
+const LOCAL_ONLY = ['finnhubKey', 'twelveKey', 'anthropicKey'];
+let cloudReady = false, pushTimer = null;
+const cloudCopy = () => { const c = { ...store }; LOCAL_ONLY.forEach((k) => delete c[k]); return c; };
+function scheduleCloudPush() {
+  if (!cloudReady) return;
+  clearTimeout(pushTimer);
+  pushTimer = setTimeout(async () => {
+    try { await Auth.push(cloudCopy()); setSyncLabel('synced'); } catch (e) { setSyncLabel('sync failed'); console.warn(e); }
+  }, 1500);
+}
+function setSyncLabel(t) { const el = document.getElementById('aSync'); if (el) el.textContent = t; }
 
 const $ = (id) => document.getElementById(id);
 const fmt$ = (x) => (x < 0 ? '-$' : '$') + Math.abs(x).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -64,14 +82,14 @@ function session() {
   const tp = Object.values(quotes).find((q) => q.tradingPeriod)?.tradingPeriod;
   const now = Date.now() / 1000;
   if (tp && tp.regular && tp.pre && tp.post && now >= tp.pre.start && now < tp.post.end) {
-    if (now >= tp.regular.start && now < tp.regular.end) return { state: 'open', label: 'NYSE Open' };
+    if (now >= tp.regular.start && now < tp.regular.end) return { state: 'open', label: 'Market Open' };
     if (now >= tp.pre.start && now < tp.pre.end) return { state: 'ext', label: 'Pre-Market' };
     if (now >= tp.post.start && now < tp.post.end) return { state: 'ext', label: 'After Hours' };
     return { state: 'closed', label: 'Market Closed' };
   }
   const { wd, mins } = etParts();
   if (wd === 'Sat' || wd === 'Sun') return { state: 'closed', label: 'Market Closed (weekend)' };
-  if (mins >= 570 && mins < 960) return { state: 'open', label: 'NYSE Open' };
+  if (mins >= 570 && mins < 960) return { state: 'open', label: 'Market Open' };
   if (mins >= 240 && mins < 570) return { state: 'ext', label: 'Pre-Market' };
   if (mins >= 960 && mins < 1200) return { state: 'ext', label: 'After Hours' };
   return { state: 'closed', label: 'Market Closed' };
@@ -106,8 +124,9 @@ async function pollQuotes() {
       if (q.error) { if (!quotes[s]) quotes[s] = { symbol: s, error: q.error }; continue; }
       const prev = quotes[s];
       q.flash = prev && prev.price && q.price !== prev.price ? (q.price > prev.price ? 'up' : 'down') : '';
+      const recent = q.recent; delete q.recent;
       quotes[s] = q;
-      recordTrend(s, q.price);
+      recordTrend(s, q.price, recent);
     }
     const stale = Object.values(data).some((q) => q.stale);
     $('lastUpdate').textContent = (stale ? 'Delayed (provider rate limit) · ' : src.label + ' · ') + new Date().toLocaleTimeString();
@@ -227,7 +246,7 @@ function renderHeader() {
   if (s.state !== 'open') {
     b.textContent = store.allowOutside
       ? `${s.label}: orders fill against the latest extended-hours or last-close price. Turn this off in Settings to trade only during the regular session (9:30–16:00 ET).`
-      : `${s.label}: trading is paused until the NYSE regular session opens (9:30 ET). Quotes keep updating.`;
+      : `${s.label}: trading is paused until the regular session opens (9:30 ET). Quotes keep updating.`;
     b.classList.remove('hidden');
   } else b.classList.add('hidden');
 }
@@ -235,13 +254,15 @@ function renderHeader() {
 // ---- short-term trend arrow (independent of the day's % change) ----
 const TREND_MS = 5 * 60000;   // compare with the price ~5 minutes ago
 const trendHist = {};         // sym -> [{ t, p }]
-function recordTrend(sym, price) {
+// recent (server/Worker mode): the last few 1-minute closes as [time, price].
+function recordTrend(sym, price, recent) {
   if (!(price > 0)) return;
   const now = Date.now();
   if (!trendHist[sym]) {
     trendHist[sym] = [];
-    // Website mode keeps 1-minute bars: seed from the bar ~5 min ago so the arrow shows right away.
-    const bars = (src && src.bars && src.bars[sym]) || [];
+    // Seed from the 1-minute bar ~5 min ago so the arrow is right as soon as the page loads.
+    // Website mode keeps its own bars; the server sends the last few with each quote.
+    const bars = (src && src.bars && src.bars[sym]) || (recent || []).map(([t, c]) => ({ t, c }));
     const old = [...bars].reverse().find((b) => now - b.t >= TREND_MS - 60000 && now - b.t <= 3 * TREND_MS);
     if (old) trendHist[sym].push({ t: old.t, p: old.c });
   }
@@ -560,7 +581,6 @@ function addToWatch(s, q) {
   selectSymbol(s);
 }
 
-let pendingAdd = null; // non-NYSE symbol awaiting "Add anyway"
 async function addSymbol(raw) {
   const s = raw.trim().toUpperCase().replace(/^\$/, '');
   if (!s) return;
@@ -574,11 +594,13 @@ async function addSymbol(raw) {
       new Promise((_, rej) => setTimeout(() => rej(new Error('lookup timed out, the data provider is busy. Try again.')), 20000)),
     ]);
     const { candles, ...q } = d;
-    if (d.isNYSE || d.isFuture) return addToWatch(s, q);
-    pendingAdd = { s, q };
-    const where = d.exchangeName || d.exchange;
-    addStatus(`${s}${d.name && d.name !== s ? ' (' + esc(d.name) + ')' : ''} ${where ? 'trades on ' + esc(where) : 'has no exchange listed'}, not the NYSE. <button class="btn small" id="addAnyway">Add anyway</button>`, 'warn');
-    $('addAnyway').onclick = () => { if (pendingAdd) addToWatch(pendingAdd.s, pendingAdd.q); pendingAdd = null; };
+    // Any US-listed stock or ETF (NYSE, Nasdaq, NYSE American, ...) plus the supported futures.
+    // Foreign listings (e.g. BMW.DE) quote in other currencies, which the account can't hold.
+    if (!d.isFuture && d.currency && d.currency !== 'USD') {
+      const where = d.exchangeName || d.exchange;
+      return addStatus(`${s}${where ? ' trades on ' + esc(where) : ''} in ${esc(d.currency)}. Only US-listed stocks and ETFs (priced in USD) are supported.`, 'down');
+    }
+    addToWatch(s, q);
   } catch (e) {
     addStatus(`Couldn't add ${s}: ${esc(/unknown|no data/i.test(e.message) ? 'no such stock found.' : e.message)}`, 'down');
   }
@@ -870,6 +892,96 @@ function showGuideNotice() {
   $('guideOpen').addEventListener('click', () => { store.seenGuide = true; save(); }); // follows the link
 }
 showGuideNotice();
+
+// ---------- account / sign-in ----------
+// A signed-in account syncs with ONE profile on this browser: the one active when
+// the person signed in. Other profiles stay local so they never overwrite it.
+async function onAuthChange(user) {
+  cloudReady = false;
+  const btn = $('btnAccount');
+  btn.classList.remove('hidden');
+  btn.textContent = user ? user.email : 'Sign in';
+  if (!user) {
+    if (profiles.cloud) { delete profiles.cloud; saveProfiles(); }
+    return;
+  }
+  const link = profiles.cloud;
+  if (link && link.userId === user.id && link.profileId !== profiles.current) {
+    const owner = profiles.list.find((p) => p.id === link.profileId);
+    if (owner) { setSyncLabel(`not synced: your account syncs with "${owner.name}"`); return; }
+  }
+  profiles.cloud = { userId: user.id, profileId: profiles.current }; saveProfiles();
+  try {
+    const remote = await Auth.pull();
+    if (!remote) {
+      await Auth.push(cloudCopy());
+    } else {
+      const localUsed = store.acct.fills.length || Object.keys(store.acct.positions).length;
+      if (!localUsed || confirm('Load your saved cloud account?\n\nOK = use the cloud copy.\nCancel = overwrite the cloud with this browser\'s data.')) {
+        const keys = {}; LOCAL_ONLY.forEach((k) => { keys[k] = store[k]; });
+        store = migrate({ ...remote, ...keys });
+        localStorage.setItem(STORE_KEY, JSON.stringify(store));
+        renderAll(); drawChart();
+      } else {
+        await Auth.push(cloudCopy());
+      }
+    }
+    cloudReady = true;
+    setSyncLabel('synced');
+    Auth.plan().then((p) => { $('aPlan').textContent = p; }).catch(() => {});
+  } catch (e) { toast('Cloud sync unavailable: ' + e.message, 'err'); }
+}
+
+function openAuth() {
+  const u = Auth.user();
+  $('authTitle').textContent = u ? 'Your account' : 'Sign in';
+  $('authOut').classList.toggle('hidden', !!u);
+  $('authIn').classList.toggle('hidden', !u);
+  if (u) $('aWho').textContent = u.email;
+  $('authErr').textContent = '';
+  $('authDlg').showModal();
+}
+function authMsg(text, ok) {
+  const el = $('authErr');
+  el.textContent = text;
+  el.className = ok ? 'up' : 'down';
+}
+// fn returns a success message to keep the dialog open, or nothing to close it.
+let authBusy = false;
+async function authAction(fn) {
+  if (authBusy) return;
+  const email = $('aEmail').value.trim(), pass = $('aPass').value;
+  const btns = ['aSignIn', 'aSignUp', 'aReset'].map($);
+  authBusy = true; btns.forEach((b) => { b.disabled = true; });
+  authMsg('');
+  try {
+    const msg = await fn(email, pass);
+    if (msg) authMsg(msg, true); else $('authDlg').close();
+  } catch (e) {
+    const m = /only request this after (\d+) seconds/i.exec(e.message || '');
+    authMsg(m ? `Email already sent. Check your inbox (and spam). You can retry in ${m[1]}s.` : e.message);
+  } finally {
+    authBusy = false; btns.forEach((b) => { b.disabled = false; });
+  }
+}
+$('btnAccount').addEventListener('click', openAuth);
+$('authForm').addEventListener('submit', (e) => { if (!Auth.user()) { e.preventDefault(); authAction((em, p) => Auth.signIn(em, p).then(() => null)); } });
+$('aSignUp').addEventListener('click', () => {
+  if (!$('aEmail').value.trim()) { authMsg('Enter your email.'); return; }
+  if ($('aPass').value.length < 6) { authMsg('Password must be 6+ characters.'); return; }
+  authAction(async (e, p) => {
+    const r = await Auth.signUp(e, p);
+    return r.session ? null : 'Account created. Check your email for a confirmation link, then come back and sign in.';
+  });
+});
+$('aReset').addEventListener('click', () => {
+  if (!$('aEmail').value.trim()) { authMsg('Enter your email first.'); return; }
+  authAction((e) => Auth.reset(e).then(() => 'Password reset email sent.'));
+});
+$('aSignOut').addEventListener('click', async () => { await Auth.signOut(); $('authDlg').close(); toast('Signed out. Continuing as guest.', 'ok'); });
+$('aClose').addEventListener('click', () => $('authDlg').close());
+// Never let auth problems block the simulator from booting.
+if (window.Auth && Auth.enabled) Promise.resolve().then(() => Auth.init(onAuthChange)).catch((e) => console.warn('Auth init failed:', e));
 
 // ---------- boot ----------
 // Prefer the bundled server (full history). On static hosting (e.g. GitHub
