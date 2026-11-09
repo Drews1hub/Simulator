@@ -983,7 +983,7 @@ async function onAuthChange(user) {
         const keys = {}; LOCAL_ONLY.forEach((k) => { keys[k] = store[k]; });
         store = migrate({ ...remote, ...keys });
         localStorage.setItem(STORE_KEY, JSON.stringify(store));
-        renderAll(); drawChart();
+        renderAll(); drawChart(); Layout.apply();
       } else {
         await Auth.push(cloudCopy());
       }
@@ -1090,5 +1090,11 @@ function start(source) {
 
 $('oSymbol').value = store.selected || store.watch[0] || '';
 renderAll();
+// Panel sizes / order / hidden panels, saved per profile (and synced with the account).
+Layout.init({
+  get: () => store && store.layout,
+  set: (l) => { store.layout = l; save(); },
+  onResize: drawChart,
+});
 setInterval(renderHeader, 30000);
 pickSource().then((s) => (s ? start(s) : askForKey()));

@@ -224,3 +224,33 @@ dialog h2 { margin: 0 0 4px; }
 .pnl-summary span { font-size: 12px; font-weight: 600; }
 .pnl-cell b { font-size: 14px; }
 .pnl-cell span { font-size: 11px; opacity: .9; margin-left: 4px; }
+
+/* ---- customizable layout (layout.js): resize gaps, edit mode, hidden panels ---- */
+main.layout { position: relative; }
+.layout.custom > .watchlist { grid-area: w; }
+.layout.custom > .chart-panel { grid-area: c; }
+.layout.custom > .ticket { grid-area: t; }
+.layout.custom > .bottom { grid-area: b; }
+.tile-hidden { display: none !important; }
+.split { position: absolute; z-index: 6; touch-action: none; }
+.split-v { width: 10px; cursor: col-resize; }
+.split-h { height: 10px; cursor: row-resize; }
+.split::after { content: ''; position: absolute; border-radius: 2px; background: var(--accent); opacity: 0; transition: opacity .15s; }
+.split-v::after { left: 4px; width: 2px; top: 8px; bottom: 8px; }
+.split-h::after { top: 4px; height: 2px; left: 8px; right: 8px; }
+.split:hover::after, .split.active::after { opacity: .9; }
+body.resizing { user-select: none; }
+body.resizing-v, body.resizing-v * { cursor: col-resize !important; }
+body.resizing-h, body.resizing-h * { cursor: row-resize !important; }
+#btnLayout.on { border-color: var(--accent); color: #bcd4f5; }
+.layout-bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 8px 16px; background: #10223a; color: #bcd4f5; border-bottom: 1px solid #1e3a5f; }
+.layout-bar .layout-hidden { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.layout-bar .layout-actions { margin-left: auto; display: flex; gap: 6px; }
+.tile-cover { position: absolute; z-index: 7; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; text-align: center; padding: 10px;
+  background: rgba(11, 15, 20, .78); border: 2px dashed var(--accent); border-radius: 8px; cursor: grab; touch-action: none; user-select: none; }
+.tile-cover b { font-size: 16px; }
+.tile-cover small { color: var(--muted); }
+.tile-cover.fixed { cursor: default; border-color: var(--line); }
+.tile-cover.moving { cursor: grabbing; opacity: .55; }
+.tile-cover.drop-target { background: rgba(59, 130, 246, .28); border-style: solid; }
+@media (max-width: 700px) { #btnLayout, .split, .tile-cover, .layout-bar { display: none !important; } }
