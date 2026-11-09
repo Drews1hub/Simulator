@@ -28,6 +28,7 @@
       <button id="btnFlatten" class="btn danger" title="Close all positions at market (F)">Flatten All</button>
       <a id="btnHelp" class="btn" href="guide.html" title="How to use this simulator">? Help</a>
       <button id="btnAccount" class="btn hidden">Sign in</button>
+      <button id="btnLayout" class="btn" title="Rearrange, resize or hide the panels">▦ Layout</button>
       <button id="btnSettings" class="btn">⚙</button>
     </div>
   </header>
@@ -38,6 +39,8 @@
     <a class="btn small" href="guide.html" id="guideOpen">Open the guide</a>
     <button class="btn small" id="guideDismiss" type="button">Got it</button>
   </div>
+
+  <div id="layoutBar" class="layout-bar hidden"></div>
 
   <main class="layout">
     <section class="panel watchlist">
@@ -213,6 +216,7 @@
   <script src="auth.js"></script>
   <script src="engine.js"></script>
   <script src="data.js"></script>
+  <script src="layout.js"></script>
   <script src="app.js"></script>
   <script src="coach.js"></script>
 </body>
