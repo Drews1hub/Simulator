@@ -39,7 +39,7 @@ function load() {
   return { acct: Engine.createAccount(), watch: DEFAULT_WATCH.slice(), selected: 'JPM', allowOutside: true, dayStart: null };
 }
 function migrate(s) {
-  return { autoFlatten: false, sound: true, equityHist: [], finnhubKey: '', twelveKey: '', anthropicKey: '', lastAutoFlatten: '', seenGuide: false, ...s };
+  return { autoFlatten: false, sound: true, equityHist: [], finnhubKey: '', twelveKey: '', anthropicKey: '', lastAutoFlatten: '', seenGuide: false, starred: [], ...s };
 }
 function save() {
   if (!store) return;
@@ -95,6 +95,21 @@ function session() {
   return { state: 'closed', label: 'Market Closed' };
 }
 const canTrade = () => session().state === 'open' || store.allowOutside;
+// Minutes until the regular session next opens (or closes, while open). Weekends are
+// skipped; exchange holidays aren't, so the countdown can be a day early on those.
+function sessionCountdown() {
+  const { wd, mins } = etParts(), open = 570, close = 960;
+  const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'], d = days.indexOf(wd);
+  const weekday = d >= 1 && d <= 5;
+  if (weekday && mins >= open && mins < close) return { verb: 'closes', mins: close - mins };
+  if (weekday && mins < open) return { verb: 'opens', mins: open - mins };
+  const ahead = d === 5 ? 3 : d === 6 ? 2 : 1; // Fri evening / Sat -> Mon; otherwise tomorrow
+  return { verb: 'opens', mins: ahead * 1440 + open - mins };
+}
+function fmtDur(m) {
+  const d = Math.floor(m / 1440), h = Math.floor((m % 1440) / 60), mm = m % 60;
+  return d ? `${d}d ${h}h` : h ? `${h}h ${mm}m` : `${mm}m`;
+}
 // CME energy futures: Sunday 6pm to Friday 5pm ET, with a daily break 5pm-6pm ET.
 function futuresOpen() {
   const { wd, mins } = etParts();
@@ -125,6 +140,7 @@ async function pollQuotes() {
       const prev = quotes[s];
       q.flash = prev && prev.price && q.price !== prev.price ? (q.price > prev.price ? 'up' : 'down') : '';
       const recent = q.recent; delete q.recent;
+      if (q.spark) { sparks[s] = q.spark; delete q.spark; }
       quotes[s] = q;
       recordTrend(s, q.price, recent);
     }
@@ -239,16 +255,21 @@ function renderHeader() {
   $('mReal').textContent = fmt$(a.realized - a.commissions); $('mReal').className = cls(a.realized - a.commissions);
   $('mBP').textContent = fmt$(Engine.buyingPower(a, px));
   $('mCash').textContent = fmt$(a.cash);
-  const s = session();
-  $('marketStatus').textContent = s.label;
-  $('marketStatus').className = 'status-pill ' + s.state;
-  const b = $('banner');
-  if (s.state !== 'open') {
-    b.textContent = store.allowOutside
-      ? `${s.label}: orders fill against the latest extended-hours or last-close price. Turn this off in Settings to trade only during the regular session (9:30–16:00 ET).`
-      : `${s.label}: trading is paused until the regular session opens (9:30 ET). Quotes keep updating.`;
-    b.classList.remove('hidden');
-  } else b.classList.add('hidden');
+  const pct = store.dayStart && store.dayStart.equity ? (day / store.dayStart.equity) * 100 : 0;
+  $('mDayPct').textContent = day ? fmtPct(pct) : ''; $('mDayPct').className = cls(day);
+  // Compact market status with a countdown; the details live in the tooltip
+  // instead of a full-width banner.
+  const s = session(), cd = sessionCountdown();
+  const short = s.label.replace(' (weekend)', '');
+  const pill = $('marketStatus');
+  pill.textContent = `${short} · ${cd.verb} in ${fmtDur(cd.mins)}`;
+  pill.className = 'status-pill ' + s.state;
+  pill.title = s.state === 'open'
+    ? 'Regular session 9:30–16:00 ET.'
+    : store.allowOutside
+      ? `${s.label}. You can still trade: orders fill at the latest extended-hours or last-close price. Turn this off in Settings to trade only 9:30–16:00 ET.`
+      : `${s.label}. Trading is paused until the regular session opens (9:30 ET). Quotes keep updating.`;
+  $('banner').classList.add('hidden');
 }
 
 // ---- short-term trend arrow (independent of the day's % change) ----
@@ -282,13 +303,42 @@ function trendArrow(sym) {
   return diff > 0 ? `<span class="trend rise" title="Rising: ${tip}">▲</span>` : `<span class="trend fall" title="Falling: ${tip}">▼</span>`;
 }
 
+// ---- watchlist sparkline: today's price path, green above / red below yesterday's close ----
+const sparks = {};            // sym -> today's closes (server/Worker sends ~40 points)
+function sparkline(sym, q) {
+  let pts = sparks[sym];
+  if (!pts && src && src.bars && src.bars[sym]) pts = src.bars[sym].map((b) => b.c); // website mode
+  if (!pts || pts.length < 2 || !q.prevClose) return '';
+  pts = pts.concat(q.price > 0 ? [q.price] : []);
+  const W = 46, H = 16, lo = Math.min(q.prevClose, ...pts), hi = Math.max(q.prevClose, ...pts), span = hi - lo || 1;
+  const x = (i) => ((i / (pts.length - 1)) * W).toFixed(1), y = (v) => (H - 1 - ((v - lo) / span) * (H - 2)).toFixed(1);
+  const line = pts.map((v, i) => `${x(i)},${y(v)}`).join(' ');
+  const up = pts[pts.length - 1] >= q.prevClose;
+  return `<svg class="spark" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" aria-hidden="true">` +
+    `<line x1="0" x2="${W}" y1="${y(q.prevClose)}" y2="${y(q.prevClose)}" class="spark-base"/>` +
+    `<polyline points="${line}" class="${up ? 'spark-up' : 'spark-down'}"/></svg>`;
+}
+
+// ---- starred symbols stay at the top of the watchlist ----
+function watchOrder() {
+  const starred = store.starred.filter((s) => store.watch.includes(s));
+  return starred.concat(store.watch.filter((s) => !starred.includes(s)));
+}
+function toggleStar(s) {
+  if (store.starred.includes(s)) store.starred = store.starred.filter((x) => x !== s);
+  else store.starred.unshift(s); // newest star goes to the very top
+  save(); renderWatch();
+}
+
 function renderWatch() {
   const tb = $('watchTable').querySelector('tbody');
-  tb.innerHTML = store.watch.map((s) => {
+  tb.innerHTML = watchOrder().map((s) => {
     const q = quotes[s] || {};
     const pos = store.acct.positions[s];
+    const on = store.starred.includes(s);
     return `<tr data-s="${s}" class="${s === store.selected ? 'sel' : ''}">
-      <td><span class="sym">${s}</span>${pos ? ` <span class="${pos.qty > 0 ? 'up' : 'down'}" title="position">●</span>` : ''}</td>
+      <td><button class="star${on ? ' on' : ''}" data-star="${s}" title="${on ? 'Unstar' : 'Star: keep at the top'}" aria-pressed="${on}">${on ? '★' : '☆'}</button><span class="sym">${s}</span>${pos ? ` <span class="${pos.qty > 0 ? 'up' : 'down'}" title="position">●</span>` : ''}</td>
+      <td class="spark-cell">${q.price ? sparkline(s, q) : ''}</td>
       <td class="r ${q.flash ? 'flash-' + q.flash : ''}">${q.error ? '<span class="down" title="' + esc(q.error) + '">err</span>' : fmtPx(q.price)}</td>
       <td class="r"><span class="${cls(q.changePct)}">${q.changePct != null ? fmtPct(q.changePct) : ''}</span> ${q.price ? trendArrow(s) : ''}</td>
       <td><button class="x" data-rm="${s}" title="Remove">×</button></td></tr>`;
@@ -339,18 +389,28 @@ function renderEstimate() {
       `Margin available ${fmt$(Engine.buyingPower(store.acct, prices()) / store.acct.settings.leverage)}${rr}`;
     return;
   }
-  $('oEst').innerHTML = `Est. value ${fmt$(px * qty)} · commission ${fmt$(fee)}<br>Buying power ${fmt$(Engine.buyingPower(store.acct, prices()))}${rr}`;
+  const closedNote = session().state !== 'open' && store.allowOutside ? '<br><span class="warn">Market closed: fills at the last price</span>' : '';
+  $('oEst').innerHTML = `Est. value ${fmt$(px * qty)} · commission ${fmt$(fee)}<br>Buying power ${fmt$(Engine.buyingPower(store.acct, prices()))}${rr}${closedNote}`;
 }
 
 function renderTab() {
   const body = $('tabBody'), a = store.acct, px = prices();
   if (activeTab === 'positions') {
     const rows = Object.entries(a.positions);
-    if (!rows.length) { body.innerHTML = '<div class="empty">No open positions. Pick a stock and place an order.</div>'; return; }
-    body.innerHTML = `<table class="tbl"><thead><tr><th>Symbol</th><th>Side</th><th class="r">Qty</th><th class="r">Avg</th><th class="r">Last</th><th class="r">Mkt Value</th><th class="r">Unrealized</th><th class="r">%</th><th></th></tr></thead><tbody>` +
+    // "How am I doing?" at a glance: today's result and the open positions' gain/loss.
+    const eq = Engine.equity(a, px), day = store.dayStart ? eq - store.dayStart.equity : 0;
+    const dayPct = store.dayStart && store.dayStart.equity ? (day / store.dayStart.equity) * 100 : 0;
+    const un = Engine.unrealized(a, px);
+    const sign$ = (x) => (x > 0 ? '+' : '') + fmt$(x);
+    const summary = `<div class="pnl-summary">
+      <div><label>Today</label><b class="${cls(day)}">${sign$(day)}</b> <span class="${cls(day)}">${fmtPct(dayPct)}</span></div>
+      <div><label>Open positions</label><b class="${cls(un)}">${sign$(un)}</b> <span class="muted">${rows.length} open</span></div>
+      <div><label>Account value</label><b>${fmt$(eq)}</b></div></div>`;
+    if (!rows.length) { body.innerHTML = summary + '<div class="empty">No open positions. Pick a stock and place an order.</div>'; return; }
+    body.innerHTML = summary + `<table class="tbl"><thead><tr><th>Symbol</th><th>Side</th><th class="r">Qty</th><th class="r">Avg</th><th class="r">Last</th><th class="r">Mkt Value</th><th class="r">Gain / Loss</th><th></th></tr></thead><tbody>` +
       rows.map(([s, p]) => {
         const m = Engine.multiplier(s), last = px[s] ?? p.avgPrice, u = (last - p.avgPrice) * p.qty * m, pct = (u / (p.avgPrice * Math.abs(p.qty) * m)) * 100;
-        return `<tr><td class="sym">${s}</td><td class="${p.qty > 0 ? 'up' : 'down'}">${p.qty > 0 ? 'LONG' : 'SHORT'}</td><td class="r">${Math.abs(p.qty)}${m > 1 ? ' ct' : ''}</td><td class="r">${fmtPx(p.avgPrice)}</td><td class="r">${fmtPx(last)}</td><td class="r">${fmt$(Math.abs(p.qty) * last * m)}</td><td class="r ${cls(u)}">${fmt$(u)}</td><td class="r ${cls(u)}">${fmtPct(pct)}</td><td><button class="btn small" data-close="${s}">Close</button></td></tr>`;
+        return `<tr><td class="sym">${s}</td><td class="${p.qty > 0 ? 'up' : 'down'}">${p.qty > 0 ? 'LONG' : 'SHORT'}</td><td class="r">${Math.abs(p.qty)}${m > 1 ? ' ct' : ''}</td><td class="r">${fmtPx(p.avgPrice)}</td><td class="r">${fmtPx(last)}</td><td class="r">${fmt$(Math.abs(p.qty) * last * m)}</td><td class="r pnl-cell ${cls(u)}"><b>${sign$(u)}</b> <span>${fmtPct(pct)}</span></td><td><button class="btn small" data-close="${s}">Close</button></td></tr>`;
       }).join('') + '</tbody></table>';
   } else if (activeTab === 'orders') {
     const rows = a.orders.filter((o) => o.status === 'open');
@@ -692,7 +752,9 @@ $('addForm').addEventListener('submit', (e) => {
 document.addEventListener('click', (e) => { if (!e.target.closest('#addForm, #suggest')) hideSuggest(); });
 $('watchTable').addEventListener('click', (e) => {
   const rm = e.target.dataset.rm;
-  if (rm) { store.watch = store.watch.filter((x) => x !== rm); save(); renderWatch(); return; }
+  if (rm) { store.watch = store.watch.filter((x) => x !== rm); store.starred = store.starred.filter((x) => x !== rm); save(); renderWatch(); return; }
+  const star = e.target.closest('[data-star]');
+  if (star) { toggleStar(star.dataset.star); return; }
   const tr = e.target.closest('tr[data-s]');
   if (tr) selectSymbol(tr.dataset.s);
 });

@@ -16,7 +16,7 @@
     <div id="marketStatus" class="status-pill">—</div>
     <div class="metrics">
       <div><label>Equity</label><b id="mEquity">—</b></div>
-      <div><label>Day P&amp;L</label><b id="mDayPnl">—</b></div>
+      <div><label>Day P&amp;L</label><b id="mDayPnl">—</b> <small id="mDayPct"></small></div>
       <div><label>Unrealized</label><b id="mUnreal">—</b></div>
       <div><label>Realized</label><b id="mReal">—</b></div>
       <div><label>Buying Power</label><b id="mBP">—</b></div>
@@ -51,7 +51,7 @@
       <ul id="suggest" class="suggest hidden" role="listbox"></ul>
       <div id="addStatus" class="add-status hidden"></div>
       <table class="tbl" id="watchTable">
-        <thead><tr><th>Sym</th><th class="r">Last</th><th class="r">Chg%</th><th></th></tr></thead>
+        <thead><tr><th>Sym</th><th title="Today's price vs yesterday's close (dotted line)">Today</th><th class="r">Last</th><th class="r">Chg%</th><th></th></tr></thead>
         <tbody></tbody>
       </table>
     </section>
