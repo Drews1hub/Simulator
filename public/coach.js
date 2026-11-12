@@ -182,12 +182,18 @@ async function readCoachStream(res, onText) {
 
 async function errorText(res) {
   let msg = '';
-  try { const j = await res.json(); msg = (j.error && (j.error.message || j.error)) || ''; } catch (_) { /* not JSON */ }
-  if (res.status === 401 || res.status === 403) return 'The AI provider rejected the API key. Check it in Settings (⚙).' + (msg ? ' (' + msg + ')' : '');
-  if (res.status === 404) return 'The provider could not find that model or URL. Check the model name in Settings (⚙).' + (msg ? ' (' + msg + ')' : '');
-  if (res.status === 429) return 'Too many requests right now (rate limit). Wait a minute and try again.';
+  try {
+    let j = await res.json(); if (Array.isArray(j)) j = j[0] || {}; // Gemini wraps errors in an array
+    const e = j.error ?? j.message ?? '';
+    msg = typeof e === 'string' ? e : (e.message || JSON.stringify(e));
+  } catch (_) { /* not JSON */ }
+  const why = msg ? ` (${msg})` : '';
+  const name = coachConfig(res.url && res.url.includes('/api/coach') ? 'server' : 'browser').provider;
+  if (res.status === 401 || res.status === 403 || (res.status === 400 && /api.?key/i.test(msg))) return `The AI provider (${name}) rejected the API key. Check the provider and key in Settings (⚙).${why}`;
+  if (res.status === 404) return `The provider (${name}) could not find that model or URL. Check the model name in Settings (⚙).${why}`;
+  if (res.status === 429) return 'Too many requests right now (rate limit), or the account is out of credit. Wait a minute and try again.' + why;
   if (res.status === 529 || res.status === 503) return msg || 'The AI service is busy. Try again shortly.';
-  return `The coach couldn't answer (HTTP ${res.status})${msg ? ': ' + msg : ''}`;
+  return `The coach couldn't answer (HTTP ${res.status})${why}`;
 }
 
 // ---------- panel ----------
