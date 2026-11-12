@@ -283,7 +283,13 @@ async function askCoach(question) {
   let text = '';
   coachBusy = new AbortController();
   try {
-    const res = await coachRequest(question, route, coachBusy.signal);
+    let res;
+    for (let tries = 0; ; tries++) { // busy providers (503/529/429) usually recover within seconds
+      res = await coachRequest(question, route, coachBusy.signal);
+      if (res.ok || ![429, 503, 529].includes(res.status) || tries >= 3) break;
+      ans.innerHTML = `<span class="muted">The AI service is busy. Retrying (${tries + 1}/3)…</span>`;
+      await new Promise((r) => setTimeout(r, 2000 * 2 ** tries)); // 2s, 4s, 8s
+    }
     if (!res.ok) throw new Error(await errorText(res));
     const info = await readCoachStream(res, (t) => { text += t; ans.innerHTML = coachMd(text); log.scrollTop = log.scrollHeight; });
     if (info.error) throw new Error(info.error);
