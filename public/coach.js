@@ -12,7 +12,7 @@
 const COACH_PROVIDERS = {
   anthropic: { label: 'Anthropic (Claude)', format: 'anthropic', base: 'https://api.anthropic.com/v1', model: 'claude-opus-5-5', keyUrl: 'https://console.anthropic.com/settings/keys', hint: 'sk-ant-…' },
   openai: { label: 'OpenAI', format: 'openai', base: 'https://api.openai.com/v1', model: 'gpt-4o', keyUrl: 'https://platform.openai.com/api-keys', hint: 'sk-…' },
-  gemini: { label: 'Google Gemini', format: 'openai', base: 'https://generativelanguage.googleapis.com/v1beta/openai', model: 'gemini-2.5-flash', keyUrl: 'https://aistudio.google.com/apikey', hint: 'AIza…' },
+  gemini: { label: 'Google Gemini', format: 'openai', base: 'https://generativelanguage.googleapis.com/v1beta/openai', model: 'gemini-3.8-flash', keyUrl: 'https://aistudio.google.com/apikey', hint: 'AIza…' },
   openrouter: { label: 'OpenRouter (any model)', format: 'openai', base: 'https://openrouter.ai/api/v1', model: 'openai/gpt-4o', keyUrl: 'https://openrouter.ai/keys', hint: 'sk-or-…' },
   custom: { label: 'Other (OpenAI-compatible URL)', format: 'openai', base: '', model: '', keyUrl: '', hint: 'API key (leave blank for local models)' },
 };

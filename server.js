@@ -25,7 +25,7 @@ function sendJSON(res, status, obj) {
 const COACH_DEFAULTS = {
   anthropic: { format: 'anthropic', base: 'https://api.anthropic.com/v1', model: 'claude-opus-5-5' },
   openai: { format: 'openai', base: 'https://api.openai.com/v1', model: 'gpt-4o' },
-  gemini: { format: 'openai', base: 'https://generativelanguage.googleapis.com/v1beta/openai', model: 'gemini-2.5-flash' },
+  gemini: { format: 'openai', base: 'https://generativelanguage.googleapis.com/v1beta/openai', model: 'gemini-3.8-flash' },
   openrouter: { format: 'openai', base: 'https://openrouter.ai/api/v1', model: 'openai/gpt-4o' },
   custom: { format: 'openai', base: '', model: '' },
 };
