@@ -39,7 +39,7 @@ function load() {
   return { acct: Engine.createAccount(), watch: DEFAULT_WATCH.slice(), selected: 'JPM', allowOutside: true, dayStart: null };
 }
 function migrate(s) {
-  return { autoFlatten: false, sound: true, equityHist: [], finnhubKey: '', twelveKey: '', anthropicKey: '', lastAutoFlatten: '', seenGuide: false, starred: [], ...s };
+  return { autoFlatten: false, sound: true, equityHist: [], finnhubKey: '', twelveKey: '', coachKey: s.anthropicKey || '', coachProvider: 'anthropic', coachModel: '', coachBase: '', lastAutoFlatten: '', seenGuide: false, starred: [], ...s };
 }
 function save() {
   if (!store) return;
@@ -49,7 +49,7 @@ function save() {
 
 // ---------- optional cloud sync (Supabase; see auth.js) ----------
 // API keys stay in this browser only and are never uploaded.
-const LOCAL_ONLY = ['finnhubKey', 'twelveKey', 'anthropicKey'];
+const LOCAL_ONLY = ['finnhubKey', 'twelveKey', 'coachKey', 'anthropicKey'];
 let cloudReady = false, pushTimer = null;
 const cloudCopy = () => { const c = { ...store }; LOCAL_ONLY.forEach((k) => delete c[k]); return c; };
 function scheduleCloudPush() {
@@ -330,18 +330,20 @@ function toggleStar(s) {
   save(); renderWatch();
 }
 
+let watchDragging = false;
 function renderWatch() {
+  if (watchDragging) return; // don't rebuild rows under a drag in progress
   const tb = $('watchTable').querySelector('tbody');
   tb.innerHTML = watchOrder().map((s) => {
     const q = quotes[s] || {};
     const pos = store.acct.positions[s];
     const on = store.starred.includes(s);
     return `<tr data-s="${s}" class="${s === store.selected ? 'sel' : ''}">
-      <td><button class="star${on ? ' on' : ''}" data-star="${s}" title="${on ? 'Unstar' : 'Star: keep at the top'}" aria-pressed="${on}">${on ? '★' : '☆'}</button><span class="sym">${s}</span>${pos ? ` <span class="${pos.qty > 0 ? 'up' : 'down'}" title="position">●</span>` : ''}</td>
+      <td><span class="grip" data-grip title="Drag to reorder">⠿</span><button class="star${on ? ' on' : ''}" data-star="${s}" title="${on ? 'Unstar' : 'Star: keep at the top'}" aria-pressed="${on}">${on ? '★' : '☆'}</button><span class="sym">${s}</span>${pos ? ` <span class="${pos.qty > 0 ? 'up' : 'down'}" title="position">●</span>` : ''}</td>
       <td class="spark-cell">${q.price ? sparkline(s, q) : ''}</td>
       <td class="r ${q.flash ? 'flash-' + q.flash : ''}">${q.error ? '<span class="down" title="' + esc(q.error) + '">err</span>' : fmtPx(q.price)}</td>
       <td class="r"><span class="${cls(q.changePct)}">${q.changePct != null ? fmtPct(q.changePct) : ''}</span> ${q.price ? trendArrow(s) : ''}</td>
-      <td><button class="x" data-rm="${s}" title="Remove">×</button></td></tr>`;
+      <td><button class="x" data-rm="${s}" title="Remove from watchlist" aria-label="Remove ${s}">✕</button></td></tr>`;
   }).join('');
 }
 
@@ -758,6 +760,35 @@ $('watchTable').addEventListener('click', (e) => {
   const tr = e.target.closest('tr[data-s]');
   if (tr) selectSymbol(tr.dataset.s);
 });
+// Drag a row's grip to reorder (pointer events: works with mouse and touch).
+$('watchTable').addEventListener('pointerdown', (e) => {
+  const grip = e.target.closest('[data-grip]');
+  if (!grip || (e.pointerType === 'mouse' && e.button !== 0)) return;
+  e.preventDefault();
+  const tb = $('watchTable').querySelector('tbody');
+  const row = grip.closest('tr');
+  watchDragging = true; row.classList.add('dragging');
+  grip.setPointerCapture(e.pointerId);
+  const move = (ev) => {
+    const over = document.elementFromPoint(ev.clientX, ev.clientY)?.closest('#watchTable tbody tr');
+    if (!over || over === row) return;
+    const r = over.getBoundingClientRect();
+    tb.insertBefore(row, ev.clientY < r.top + r.height / 2 ? over : over.nextSibling);
+  };
+  const end = () => {
+    grip.removeEventListener('pointermove', move);
+    grip.removeEventListener('pointerup', end);
+    grip.removeEventListener('pointercancel', end);
+    row.classList.remove('dragging');
+    const order = [...tb.querySelectorAll('tr[data-s]')].map((r) => r.dataset.s);
+    store.watch = order;
+    store.starred = order.filter((x) => store.starred.includes(x)); // starred keep their relative order
+    watchDragging = false; save(); renderWatch();
+  };
+  grip.addEventListener('pointermove', move);
+  grip.addEventListener('pointerup', end);
+  grip.addEventListener('pointercancel', end);
+});
 $('rangeSeg').addEventListener('click', (e) => {
   const b = e.target.closest('button'); if (!b) return;
   [...$('rangeSeg').children].forEach((x) => x.classList.toggle('on', x === b));
@@ -865,7 +896,7 @@ $('btnSettings').addEventListener('click', () => {
   $('sAutoFlat').checked = store.autoFlatten; $('sSound').checked = store.sound;
   $('sKey').value = store.finnhubKey || '';
   $('sTwelve').value = store.twelveKey || '';
-  $('sAnthropic').value = store.anthropicKey || '';
+  $('sCoach').innerHTML = coachFieldsHtml(); coachFieldsWire($('sCoach'));
   $('settingsDlg').showModal();
 });
 $('settingsDlg').addEventListener('close', () => {
@@ -890,7 +921,7 @@ $('settingsDlg').addEventListener('close', () => {
       ? 'Settings saved. Starting cash only changes when you reset the account.'
       : 'Settings saved.', 'ok');
   }
-  store.anthropicKey = $('sAnthropic').value.trim();
+  coachFieldsSave($('sCoach')); delete store.anthropicKey;
   const key = $('sKey').value.trim(), tkey = $('sTwelve').value.trim();
   const keysChanged = key !== (store.finnhubKey || '') || tkey !== (store.twelveKey || '');
   store.finnhubKey = key; store.twelveKey = tkey;
@@ -924,7 +955,7 @@ $('profileSel').addEventListener('change', () => {
     // Fresh account, but share this browser's API keys so they don't have to be entered again.
     localStorage.setItem(storeKeyFor(id), JSON.stringify({
       acct: Engine.createAccount(), watch: DEFAULT_WATCH.slice(), selected: DEFAULT_WATCH[0], allowOutside: true, dayStart: null,
-      finnhubKey: store.finnhubKey || '', twelveKey: store.twelveKey || '', anthropicKey: store.anthropicKey || '', seenGuide: true,
+      finnhubKey: store.finnhubKey || '', twelveKey: store.twelveKey || '', coachKey: store.coachKey || '', coachProvider: store.coachProvider, coachModel: store.coachModel, coachBase: store.coachBase, seenGuide: true,
     }));
     switchProfile(id);
   } else if (v === '__rename') {

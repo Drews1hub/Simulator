@@ -254,3 +254,10 @@ body.resizing-h, body.resizing-h * { cursor: row-resize !important; }
 .tile-cover.moving { cursor: grabbing; opacity: .55; }
 .tile-cover.drop-target { background: rgba(59, 130, 246, .28); border-style: solid; }
 @media (max-width: 700px) { #btnLayout, .split, .tile-cover, .layout-bar { display: none !important; } }
+
+/* watchlist: drag handle + clearer remove button */
+.grip { cursor: grab; color: var(--muted); padding: 0 4px 0 0; touch-action: none; user-select: none; }
+.grip:hover { color: var(--text, #cfd8e6); }
+#watchTable tr.dragging { opacity: .6; background: var(--panel2); }
+.x { font-size: 12px; padding: 2px 4px; }
+.grip { font-size: 16px; padding: 2px 6px 2px 0; }

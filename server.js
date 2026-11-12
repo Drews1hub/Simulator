@@ -15,10 +15,30 @@ function sendJSON(res, status, obj) {
   res.end(JSON.stringify(obj));
 }
 
-// ---- AI coach: forwards the browser's request to Anthropic, adding the key ----
-// The key comes from the ANTHROPIC_API_KEY environment variable and never reaches the browser.
+// ---- AI coach: forwards the browser's request to an LLM provider, adding the key ----
+// Configure with environment variables (the key never reaches the browser):
+//   COACH_API_KEY   key for any provider (falls back to ANTHROPIC_API_KEY)
+//   COACH_PROVIDER  anthropic (default) | openai | gemini | openrouter | custom
+//   COACH_MODEL     model name (default depends on the provider)
+//   COACH_BASE_URL  only for custom/OpenAI-compatible servers, e.g. http://localhost:11434/v1
 // Only this computer may use it, so other devices on the network can't spend your credit.
-const COACH_MODELS = new Set(['claude-opus-5-5']);
+const COACH_DEFAULTS = {
+  anthropic: { format: 'anthropic', base: 'https://api.anthropic.com/v1', model: 'claude-opus-5-5' },
+  openai: { format: 'openai', base: 'https://api.openai.com/v1', model: 'gpt-4o' },
+  gemini: { format: 'openai', base: 'https://generativelanguage.googleapis.com/v1beta/openai', model: 'gemini-2.5-flash' },
+  openrouter: { format: 'openai', base: 'https://openrouter.ai/api/v1', model: 'openai/gpt-4o' },
+  custom: { format: 'openai', base: '', model: '' },
+};
+function coachCfg() {
+  const env = process.env, key = env.COACH_API_KEY || env.ANTHROPIC_API_KEY || '';
+  const provider = COACH_DEFAULTS[env.COACH_PROVIDER] ? env.COACH_PROVIDER : (env.COACH_BASE_URL ? 'custom' : 'anthropic');
+  const d = COACH_DEFAULTS[provider];
+  const base = (provider === 'custom' ? env.COACH_BASE_URL || '' : d.base).replace(/\/+$/, '');
+  const model = env.COACH_MODEL || d.model;
+  const local = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])/.test(base);
+  if (!base || !model || (!key && !local)) return null;
+  return { provider, format: d.format, base, model, key };
+}
 function isLoopback(addr) { return addr === '127.0.0.1' || addr === '::1' || addr === '::ffff:127.0.0.1'; }
 function readBody(req, limit) {
   return new Promise((resolve, reject) => {
@@ -29,27 +49,28 @@ function readBody(req, limit) {
   });
 }
 async function coachProxy(req, res) {
-  if (!process.env.ANTHROPIC_API_KEY) return sendJSON(res, 503, { error: 'Start the server with ANTHROPIC_API_KEY set to use the coach' });
+  const cfg = coachCfg();
+  if (!cfg) return sendJSON(res, 503, { error: 'Start the server with COACH_API_KEY (or ANTHROPIC_API_KEY) set to use the coach' });
   if (!isLoopback(req.socket.remoteAddress)) return sendJSON(res, 403, { error: 'The coach is only available on the computer running the server' });
   let body;
   try { body = JSON.parse(await readBody(req, 512 * 1024)); } catch (e) { return sendJSON(res, e.status || 400, { error: e.message || 'Invalid JSON' }); }
-  if (!COACH_MODELS.has(body.model)) return sendJSON(res, 400, { error: 'Model not allowed' });
+  if (body.model !== cfg.model) return sendJSON(res, 400, { error: 'Model not allowed' });
   body.max_tokens = Math.min(Number(body.max_tokens) || 16000, 16000);
   body.stream = true;
+  const headers = { 'content-type': 'application/json' };
+  let url;
+  if (cfg.format === 'anthropic') {
+    url = cfg.base + '/messages';
+    Object.assign(headers, { 'x-api-key': cfg.key, 'anthropic-version': '2026-10-21', 'anthropic-beta': 'server-side-fallback-2026-07-01' });
+  } else {
+    url = cfg.base + '/chat/completions';
+    if (cfg.key) headers.authorization = 'Bearer ' + cfg.key;
+  }
   let upstream;
   try {
-    upstream = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'x-api-key': process.env.ANTHROPIC_API_KEY,
-        'anthropic-version': '2026-10-21',
-        'anthropic-beta': 'server-side-fallback-2026-07-01',
-      },
-      body: JSON.stringify(body),
-    });
+    upstream = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body) });
   } catch (e) {
-    return sendJSON(res, 502, { error: 'Could not reach Anthropic: ' + e.message });
+    return sendJSON(res, 502, { error: 'Could not reach the AI provider: ' + e.message });
   }
   res.writeHead(upstream.status, { 'Content-Type': upstream.headers.get('content-type') || 'application/json', 'Cache-Control': 'no-store' });
   try { for await (const chunk of upstream.body) res.write(chunk); } catch (_) { /* client went away */ }
@@ -74,8 +95,8 @@ const server = http.createServer(async (req, res) => {
   if (url.pathname === '/api/coach' && req.method === 'POST') return coachProxy(req, res);
   if (url.pathname.startsWith('/api/')) {
     const { status, body } = await (await marketReady).handleApi(url);
-    // Local-only extra: tell the coach panel whether this server holds an Anthropic key.
-    if (url.pathname === '/api/health') body.coach = !!process.env.ANTHROPIC_API_KEY;
+    // Local-only extra: tell the coach panel whether this server holds an AI key, and for which provider.
+    if (url.pathname === '/api/health') { const c = coachCfg(); body.coach = c ? { provider: c.provider, format: c.format, model: c.model } : false; }
     return sendJSON(res, status, body);
   }
   return serveStatic(req, res, url.pathname);

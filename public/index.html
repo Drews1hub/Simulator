@@ -160,7 +160,7 @@
       <label class="check"><input id="sSound" type="checkbox"> Sound on fills</label>
       <div class="field"><label>Finnhub API key (only used when hosted without the server, e.g. GitHub Pages)</label><input id="sKey" autocomplete="off" spellcheck="false"></div>
       <div class="field"><label>Twelve Data API key (optional: unlocks the 5D and 1M charts on the website)</label><input id="sTwelve" autocomplete="off" spellcheck="false"></div>
-      <div class="field"><label>Anthropic API key (optional: powers the AI coach; stays in this browser)</label><input id="sAnthropic" autocomplete="off" spellcheck="false"></div>
+      <fieldset class="field" style="border:1px solid var(--line);border-radius:6px"><legend>AI coach (optional; any provider, key stays in this browser)</legend><div id="sCoach"></div></fieldset>
       <p class="muted"><strong>Save</strong> keeps your positions and history; new leverage, fees and slippage apply to your next orders. Starting cash only changes with <strong>Save &amp; Reset Account</strong>, which erases everything.</p>
       <div class="dlg-actions">
         <button value="cancel" class="btn">Cancel</button>

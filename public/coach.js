@@ -1,14 +1,34 @@
 /* global store, quotes, chartData, chartRange, src, prices, Engine, DataSources, session, futuresOpen,
           ema, vwap, fmtPx, fmtPct, fmt$, esc, $, side, save */
-// AI trading coach: sends Claude a snapshot of what's on screen plus the
+// AI trading coach: sends an LLM a snapshot of what's on screen plus the
 // user's question, and streams the reply into a panel beside the chart.
-//  - Local server: POST api/coach, the server adds the key (ANTHROPIC_API_KEY).
-//  - Website: the browser calls the Anthropic API directly with the user's key.
+//  - Local server: POST api/coach, the server adds the key (COACH_API_KEY or ANTHROPIC_API_KEY).
+//  - Website: the browser calls the provider directly with the user's own key.
+// Works with Anthropic, plus anything that speaks the OpenAI chat API
+// (OpenAI, Google Gemini, OpenRouter, Groq, Ollama, LM Studio, ...).
 'use strict';
 
-const COACH_MODEL = 'claude-opus-5-5';
-const COACH_PRICE = { in: 4 / 1e6, out: 20 / 1e6 }; // $ per token for the model above
-const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages';
+// format 'anthropic' = Messages API; 'openai' = /chat/completions (the de-facto standard).
+const COACH_PROVIDERS = {
+  anthropic: { label: 'Anthropic (Claude)', format: 'anthropic', base: 'https://api.anthropic.com/v1', model: 'claude-opus-5-5', keyUrl: 'https://console.anthropic.com/settings/keys', hint: 'sk-ant-…' },
+  openai: { label: 'OpenAI', format: 'openai', base: 'https://api.openai.com/v1', model: 'gpt-4o', keyUrl: 'https://platform.openai.com/api-keys', hint: 'sk-…' },
+  gemini: { label: 'Google Gemini', format: 'openai', base: 'https://generativelanguage.googleapis.com/v1beta/openai', model: 'gemini-2.5-flash', keyUrl: 'https://aistudio.google.com/apikey', hint: 'AIza…' },
+  openrouter: { label: 'OpenRouter (any model)', format: 'openai', base: 'https://openrouter.ai/api/v1', model: 'openai/gpt-4o', keyUrl: 'https://openrouter.ai/keys', hint: 'sk-or-…' },
+  custom: { label: 'Other (OpenAI-compatible URL)', format: 'openai', base: '', model: '', keyUrl: '', hint: 'API key (leave blank for local models)' },
+};
+// $ per token, only known for the default Anthropic model; others show tokens only.
+const COACH_PRICES = { 'claude-opus-5-5': { in: 4 / 1e6, out: 20 / 1e6 } };
+
+// The active provider settings: the server's (if it holds a key) or the user's own.
+function coachConfig(route) {
+  if (route === 'server' && serverCoach && typeof serverCoach === 'object') return serverCoach;
+  const id = COACH_PROVIDERS[store.coachProvider] ? store.coachProvider : 'anthropic', p = COACH_PROVIDERS[id];
+  return {
+    provider: id, format: p.format, key: store.coachKey || '',
+    base: (id === 'custom' ? (store.coachBase || '') : p.base).replace(/\/+$/, ''),
+    model: (store.coachModel || '').trim() || p.model,
+  };
+}
 
 const COACH_SYSTEM = `You are a trading coach built into a paper-trading simulator. The person is practicing day trading with pretend money, mostly US stocks and sometimes oil futures. Each question comes with a snapshot of their screen: the selected instrument, recent price bars, their positions, account, open orders, the order they are drafting, and their recent fills.
 
@@ -84,41 +104,44 @@ function coachSnapshot() {
 }
 
 // ---------- talking to Claude ----------
-let serverCoach = null; // does the local server have ANTHROPIC_API_KEY?
+let serverCoach = null; // null = unknown, false = none, or {provider, format, model} when the local server holds a key
 async function coachRoute() {
   if (src instanceof DataSources.ServerSource) {
     if (serverCoach === null) {
-      try { serverCoach = !!(await (await fetch('api/health', { cache: 'no-store' })).json()).coach; } catch (_) { serverCoach = false; }
+      try { serverCoach = (await (await fetch('api/health', { cache: 'no-store' })).json()).coach || false; } catch (_) { serverCoach = false; }
     }
     if (serverCoach) return 'server';
   }
-  return store.anthropicKey ? 'browser' : null;
+  const c = coachConfig('browser');
+  const needsKey = c.provider !== 'custom' || !/^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])/.test(c.base);
+  return c.base && c.model && (c.key || !needsKey) ? 'browser' : null;
 }
 
 async function coachRequest(question, route, signal) {
-  const body = {
-    model: COACH_MODEL,
-    max_tokens: 16000,
-    stream: true,
-    output_config: { effort: 'medium' },
-    fallbacks: 'default', // if a request is declined, Anthropic retries it on its recommended substitute model
-    system: COACH_SYSTEM,
-    messages: [{ role: 'user', content: `<screen>\n${coachSnapshot()}\n</screen>\n\n${question}` }],
-  };
-  if (route === 'server') {
-    return fetch('api/coach', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body), signal });
-  }
-  return fetch(ANTHROPIC_URL, {
-    method: 'POST', signal,
-    headers: {
-      'content-type': 'application/json',
-      'x-api-key': store.anthropicKey,
-      'anthropic-version': '2026-10-21',
-      'anthropic-beta': 'server-side-fallback-2026-07-01',
+  const c = coachConfig(route), user = `<screen>\n${coachSnapshot()}\n</screen>\n\n${question}`;
+  let body, url, headers = { 'content-type': 'application/json' };
+  if (c.format === 'anthropic') {
+    body = {
+      model: c.model, max_tokens: 16000, stream: true,
+      output_config: { effort: 'medium' },
+      fallbacks: 'default', // if a request is declined, Anthropic retries it on its recommended substitute model
+      system: COACH_SYSTEM, messages: [{ role: 'user', content: user }],
+    };
+    url = (c.base || COACH_PROVIDERS.anthropic.base) + '/messages';
+    Object.assign(headers, {
+      'x-api-key': c.key, 'anthropic-version': '2026-10-21', 'anthropic-beta': 'server-side-fallback-2026-07-01',
       'anthropic-dangerous-direct-browser-access': 'true', // the key is the user's own and stays in their browser
-    },
-    body: JSON.stringify(body),
-  });
+    });
+  } else {
+    body = {
+      model: c.model, max_tokens: 4000, stream: true, stream_options: { include_usage: true },
+      messages: [{ role: 'system', content: COACH_SYSTEM }, { role: 'user', content: user }],
+    };
+    url = c.base + '/chat/completions';
+    if (c.key) headers.authorization = 'Bearer ' + c.key;
+  }
+  if (route === 'server') return fetch('api/coach', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body), signal });
+  return fetch(url, { method: 'POST', signal, headers, body: JSON.stringify(body) });
 }
 
 // Read the server-sent event stream; call onText for each piece of the answer.
@@ -135,7 +158,16 @@ async function readCoachStream(res, onText) {
       const chunk = buf.slice(0, i); buf = buf.slice(i + 2);
       const data = chunk.split('\n').filter((l) => l.startsWith('data:')).map((l) => l.slice(5).trim()).join('');
       if (!data) continue;
+      if (data === '[DONE]') continue;
       let ev; try { ev = JSON.parse(data); } catch (_) { continue; }
+      if (ev.choices || (ev.error && !ev.type)) { // OpenAI-style chunk
+        if (ev.error) { info.error = ev.error.message || String(ev.error); continue; }
+        const ch = ev.choices[0];
+        if (ch && ch.delta && ch.delta.content) onText(ch.delta.content);
+        if (ch && ch.finish_reason) info.stop = ch.finish_reason === 'length' ? 'max_tokens' : ch.finish_reason === 'content_filter' ? 'refusal' : ch.finish_reason;
+        if (ev.usage) { info.inTok = ev.usage.prompt_tokens || 0; info.outTok = ev.usage.completion_tokens || 0; }
+        continue;
+      }
       if (ev.type === 'message_start' && ev.message && ev.message.usage) info.inTok = ev.message.usage.input_tokens || 0;
       else if (ev.type === 'content_block_start' && ev.content_block && ev.content_block.type === 'fallback') info.fallback = true;
       else if (ev.type === 'content_block_delta' && ev.delta && ev.delta.type === 'text_delta') onText(ev.delta.text);
@@ -151,7 +183,8 @@ async function readCoachStream(res, onText) {
 async function errorText(res) {
   let msg = '';
   try { const j = await res.json(); msg = (j.error && (j.error.message || j.error)) || ''; } catch (_) { /* not JSON */ }
-  if (res.status === 401) return 'Anthropic rejected the API key. Check it in Settings (⚙).';
+  if (res.status === 401 || res.status === 403) return 'The AI provider rejected the API key. Check it in Settings (⚙).' + (msg ? ' (' + msg + ')' : '');
+  if (res.status === 404) return 'The provider could not find that model or URL. Check the model name in Settings (⚙).' + (msg ? ' (' + msg + ')' : '');
   if (res.status === 429) return 'Too many requests right now (rate limit). Wait a minute and try again.';
   if (res.status === 529 || res.status === 503) return msg || 'The AI service is busy. Try again shortly.';
   return `The coach couldn't answer (HTTP ${res.status})${msg ? ': ' + msg : ''}`;
@@ -187,22 +220,42 @@ function closeCoach() {
   if (typeof drawChart === 'function') drawChart();
 }
 
+function coachFieldsHtml() {
+  const c = coachConfig('browser');
+  return `<div class="field"><label>Provider</label><select class="cProv">${Object.entries(COACH_PROVIDERS).map(([k, p]) => `<option value="${k}"${k === c.provider ? ' selected' : ''}>${esc(p.label)}</option>`).join('')}</select></div>
+    <div class="field cBaseRow"><label>API base URL (OpenAI-compatible, e.g. https://api.groq.com/openai/v1 or http://localhost:11434/v1)</label><input class="cBase" value="${esc(store.coachBase || '')}" autocomplete="off" spellcheck="false"></div>
+    <div class="field"><label>Model <span class="muted">(blank = default)</span></label><input class="cModel" value="${esc(store.coachModel || '')}" placeholder="${esc(COACH_PROVIDERS[c.provider].model || 'model name')}" autocomplete="off" spellcheck="false"></div>
+    <div class="field"><label>API key <span class="cKeyLink"></span></label><input class="cKey" type="password" value="${esc(store.coachKey || '')}" autocomplete="off" spellcheck="false"></div>`;
+}
+function coachFieldsWire(root) {
+  const sel = root.querySelector('.cProv');
+  const sync = () => {
+    const p = COACH_PROVIDERS[sel.value];
+    root.querySelector('.cBaseRow').classList.toggle('hidden', sel.value !== 'custom');
+    root.querySelector('.cModel').placeholder = p.model || 'model name';
+    root.querySelector('.cKey').placeholder = p.hint;
+    root.querySelector('.cKeyLink').innerHTML = p.keyUrl ? `(<a href="${p.keyUrl}" target="_blank" rel="noopener">get one</a>)` : '';
+  };
+  sel.onchange = sync; sync();
+}
+function coachFieldsSave(root) {
+  store.coachProvider = root.querySelector('.cProv').value;
+  store.coachBase = root.querySelector('.cBase').value.trim();
+  store.coachModel = root.querySelector('.cModel').value.trim();
+  store.coachKey = root.querySelector('.cKey').value.trim();
+}
+
 async function renderCoachSetup() {
   const route = await coachRoute(), box = $('coachSetup');
   box.classList.toggle('hidden', !!route);
   if (route) return;
   const local = src instanceof DataSources.ServerSource;
-  box.innerHTML = `<p><b>Connect the coach.</b> It uses Claude by Anthropic, which charges per question (usually a few cents).</p>
-    <ol><li>Create an API key at <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com</a> (add a small amount of credit).</li>
-    <li>Paste it here. It's stored only in this browser and sent only to Anthropic.</li></ol>
-    <div class="coach-key"><input id="coachKey" placeholder="sk-ant-…" autocomplete="off" spellcheck="false"><button class="btn" id="coachKeySave">Save</button></div>
-    ${local ? '<p class="muted">Running the local server? You can instead start it with ANTHROPIC_API_KEY set, so the key stays out of the browser.</p>' : ''}`;
-  $('coachKeySave').onclick = () => {
-    const k = $('coachKey').value.trim();
-    if (!k) return;
-    store.anthropicKey = k; save();
-    renderCoachSetup();
-  };
+  box.innerHTML = `<p><b>Connect the coach.</b> Use your own API key from any AI provider (Claude, ChatGPT, Gemini, OpenRouter, or a local model). Providers charge per question, usually a few cents. The key is stored only in this browser and sent only to the provider.</p>
+    ${coachFieldsHtml()}
+    <div class="coach-key"><button class="btn" id="coachKeySave">Save</button></div>
+    ${local ? '<p class="muted">Running the local server? You can instead start it with COACH_API_KEY set (see the README), so the key stays out of the browser.</p>' : ''}`;
+  coachFieldsWire(box);
+  $('coachKeySave').onclick = () => { coachFieldsSave(box); save(); renderCoachSetup(); };
 }
 
 async function askCoach(question) {
@@ -231,8 +284,8 @@ async function askCoach(question) {
     if (info.stop === 'refusal') ans.innerHTML = '<p class="muted">The coach couldn\'t answer this one. Try asking it a different way.</p>';
     else if (!text) ans.innerHTML = '<p class="muted">No answer came back. Try again.</p>';
     else if (info.stop === 'max_tokens') ans.insertAdjacentHTML('beforeend', '<p class="muted">(Answer was cut off.)</p>');
-    const cost = info.inTok * COACH_PRICE.in + info.outTok * COACH_PRICE.out;
-    meta.textContent = `≈ $${cost.toFixed(3)} · ${info.inTok + info.outTok} tokens${info.fallback ? ' · answered by a backup model' : ''}`;
+    const cfg = coachConfig(route), pr = COACH_PRICES[cfg.model];
+    meta.textContent = `${cfg.model} · ${pr ? `≈ $${(info.inTok * pr.in + info.outTok * pr.out).toFixed(3)} · ` : ''}${info.inTok + info.outTok} tokens${info.fallback ? ' · answered by a backup model' : ''}`;
   } catch (e) {
     if (e.name === 'AbortError') ans.innerHTML = '<p class="muted">Stopped.</p>';
     else ans.innerHTML = `<p class="down">${esc(e.message || String(e))}</p>`;

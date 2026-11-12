@@ -65,10 +65,10 @@ The US regular session (NYSE and Nasdaq) runs 9:30–16:00 ET. The simulator rea
 
 ## AI coach
 
-**💬 Ask the coach** (under the order ticket) opens a panel beside the chart. It sends Claude (`claude-opus-5-5`) a text snapshot of the screen: selected symbol, the last 90 bars with EMA/VWAP, account, positions, working orders, the order being drafted, and the last 20 fills. Then it streams the answer. Presets: check my order, explain the chart, my position, review my trades.
+**💬 Ask the coach** (under the order ticket) opens a panel beside the chart. It sends an LLM (Claude by default) a text snapshot of the screen: selected symbol, the last 90 bars with EMA/VWAP, account, positions, working orders, the order being drafted, and the last 20 fills. Then it streams the answer. Presets: check my order, explain the chart, my position, review my trades.
 
-- **Website (Cloudflare or GitHub Pages):** paste an Anthropic API key in the coach panel or Settings. It stays in the browser and is sent only to `api.anthropic.com`. It is never uploaded by cloud sync.
-- **Local server:** start it with the key in the environment so it never reaches the browser, e.g. `ANTHROPIC_API_KEY=sk-ant-... npm start` (PowerShell: `$env:ANTHROPIC_API_KEY="sk-ant-..."; npm start`). The server forwards `/api/coach` only for requests from the same computer. Without the env var, the browser key is used instead.
+- **Website (Cloudflare or GitHub Pages):** pick a provider (Anthropic, OpenAI, Google Gemini, OpenRouter, or any OpenAI-compatible URL such as Groq or a local Ollama) and paste your key in the coach panel or Settings. You can also set the model name. The key stays in the browser and is sent only to that provider. It is never uploaded by cloud sync.
+- **Local server:** start it with the key in the environment so it never reaches the browser, e.g. `ANTHROPIC_API_KEY=sk-ant-... npm start`. For other providers set `COACH_PROVIDER` (`openai`, `gemini`, `openrouter`, `custom`), `COACH_API_KEY`, and optionally `COACH_MODEL` / `COACH_BASE_URL`, e.g. `COACH_PROVIDER=openai COACH_API_KEY=sk-... npm start`. The server forwards `/api/coach` only for requests from the same computer. Without the env var, the browser key is used instead.
 - Cost is shown under each answer (estimated at $4 / $20 per million input / output tokens); a typical question is a few cents.
 
 ## Oil futures (local server and trader.beneby.cc)
@@ -108,4 +108,4 @@ Enabled for trader.beneby.cc via `public/config.js`. Visitors who don't sign in 
 2. In Authentication → URL Configuration, set the Site URL to your hosted URL (and add `http://localhost:3000` for local testing).
 3. Put the project URL and **anon** key in `public/config.js` and set `AUTH_ENABLED: true`. Never use the `service_role` key there.
 
-Signed-in users get their account and watchlist synced to the `portfolios` table (row-level security restricts each row to its owner). API keys (Finnhub, Twelve Data, Anthropic) are never uploaded. With several profiles on one browser, an account syncs only with the profile that was active when the person signed in. `profiles.plan` is reserved for subscriptions and is writable only by a server-side Stripe webhook.
+Signed-in users get their account and watchlist synced to the `portfolios` table (row-level security restricts each row to its owner). API keys (Finnhub, Twelve Data, AI coach) are never uploaded. With several profiles on one browser, an account syncs only with the profile that was active when the person signed in. `profiles.plan` is reserved for subscriptions and is writable only by a server-side Stripe webhook.
